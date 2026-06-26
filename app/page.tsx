@@ -203,6 +203,7 @@ export default function Page() {
             {modoReporte ? (
               <FormularioReporte
                 coordenadasSeleccionadas={coordenadasSeleccionadas}
+                setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
                 onCancel={() => {
                   setModoReporte(false)
                   setCoordenadasSeleccionadas(null)

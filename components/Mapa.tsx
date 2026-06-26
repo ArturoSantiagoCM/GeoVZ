@@ -79,9 +79,11 @@ function MapClickHandler({
 
 // Componente para controlar dinámicamente el centro/zoom del mapa
 function MapController({
-  reporteSeleccionado
+  reporteSeleccionado,
+  coordenadasSeleccionadas
 }: {
   reporteSeleccionado: Reporte | null
+  coordenadasSeleccionadas: { lat: number; lng: number } | null
 }) {
   const map = useMap()
 
@@ -93,6 +95,15 @@ function MapController({
       })
     }
   }, [reporteSeleccionado, map])
+
+  useEffect(() => {
+    if (coordenadasSeleccionadas) {
+      map.flyTo([coordenadasSeleccionadas.lat, coordenadasSeleccionadas.lng], 13, {
+        animate: true,
+        duration: 1.5
+      })
+    }
+  }, [coordenadasSeleccionadas, map])
 
   return null
 }
@@ -146,7 +157,10 @@ export default function Mapa({
           modoReporte={modoReporte}
           setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
         />
-        <MapController reporteSeleccionado={reporteSeleccionado} />
+        <MapController 
+          reporteSeleccionado={reporteSeleccionado} 
+          coordenadasSeleccionadas={coordenadasSeleccionadas} 
+        />
 
         {/* Pines de Reportes Existentes */}
         {reportes.map(reporte => {

@@ -42,7 +42,7 @@ export default function Mapa({ reportes }: { reportes: Reporte[] }) {
   return (
     <MapContainer
       center={[10.3946, -67.63242]} 
-      zoom={7}
+      zoom={9}
       style={{ height: '70vh', width: '100%' }}
     >
       <TileLayer

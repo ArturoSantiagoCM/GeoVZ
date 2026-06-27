@@ -144,7 +144,7 @@ export default function Mapa({
 
       <MapContainer
         center={[10.3946, -67.63242]} 
-        zoom={9}
+        zoom={8}
         style={{ height: '100%', width: '100%' }}
         className="z-0"
       >

@@ -28,8 +28,8 @@ export default function Page() {
   const [reportes, setReportes] = useState<Reporte[]>([])
   const [cargando, setCargando] = useState(true)
 
-  // Control de vista activa exclusivo para móviles
-  const [vistaMobile, setVistaMobile] = useState<MobileView>('mapa')
+  // Control de vista activa para móviles: Inicializado por defecto en 'lista'
+  const [vistaMobile, setVistaMobile] = useState<MobileView>('lista')
 
   // Estados de Filtros
   const [filtroTipo, setFiltroTipo] = useState('')
@@ -143,7 +143,7 @@ export default function Page() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-slate-100 font-sans pb-16 md:pb-0">
-      {/* Cabecera / Navbar - Compacta para celulares */}
+      {/* Cabecera / Navbar */}
       <header className="h-14 sm:h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 sm:px-6 shrink-0 shadow-md z-20">
         <div className="flex items-center gap-3">
           <Image 
@@ -162,7 +162,7 @@ export default function Page() {
           </div>
         </div>
 
-        {/* Stats - Escondidos en móvil para no amontonar la pantalla */}
+        {/* Stats de Escritorio */}
         <div className="hidden md:flex items-center gap-6">
           <div className="text-right">
             <span className="text-[10px] text-slate-400 uppercase block font-bold tracking-wider">Reportes Totales</span>
@@ -190,7 +190,7 @@ export default function Page() {
           ${vistaMobile === 'mapa' ? 'hidden md:flex' : 'flex'} 
           ${vistaMobile === 'lista' || vistaMobile === 'reportar' ? 'h-full' : 'h-0 md:h-full'}
         `}>
-          {/* Header del Sidebar - Oculto en móvil ya que usamos las pestañas inferiores */}
+          {/* Header del Sidebar */}
           <div className="hidden md:flex p-4 border-b border-slate-100 bg-slate-50/50 items-center justify-between">
             <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
               {modoReporte ? <ShieldAlert size={16} className="text-blue-500" /> : <ListIcon size={16} />}
@@ -225,6 +225,16 @@ export default function Page() {
               />
             ) : (
               <>
+                {/* Título de llamada a la acción para el usuario */}
+                <div className="py-1">
+                  <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight leading-tight">
+                    ¿Qué o dónde puedo donar o ayudar?
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Filtra las necesidades críticas mapeadas por los ciudadanos.
+                  </p>
+                </div>
+
                 {/* Enlaces Rápidos de Emergencia */}
                 <div className="grid grid-cols-2 gap-3 mb-2">
                   <a
@@ -273,7 +283,7 @@ export default function Page() {
                         estaSeleccionado={reporteSeleccionado?.id === reporte.id}
                         onSelect={(rep) => {
                           setReporteSeleccionado(rep)
-                          // Al tocar un reporte en el móvil, nos lleva automáticamente al mapa
+                          // Al tocar un reporte en móvil, abre el mapa en esa posición
                           if (window.innerWidth < 768) {
                             setVistaMobile('mapa')
                           }
@@ -295,7 +305,7 @@ export default function Page() {
           </div>
         </aside>
 
-        {/* Panel del Mapa - Toma pantalla completa en móvil si está activo */}
+        {/* Panel del Mapa */}
         <main className={`
           flex-1 bg-slate-50 relative h-full
           ${vistaMobile === 'mapa' ? 'block' : 'hidden md:block'}
@@ -320,18 +330,8 @@ export default function Page() {
         </main>
       </div>
 
-      {/* BARRA DE NAVEGACIÓN INFERIOR (BOTTOM NAVIGATION) - Exclusiva para Celulares */}
+      {/* BARRA DE NAVEGACIÓN INFERIOR (BOTTOM NAVIGATION) - Móviles */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 flex items-center justify-around px-2 z-[500] shadow-xl">
-        <button
-          onClick={() => cambiarVistaMobile('mapa')}
-          className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-colors ${
-            vistaMobile === 'mapa' ? 'text-blue-600 font-bold' : 'text-slate-500'
-          }`}
-        >
-          <MapIcon size={20} className={vistaMobile === 'mapa' ? 'stroke-[2.5]' : 'stroke-[1.8]'} />
-          <span className="text-[10px] tracking-tight">Ver Mapa</span>
-        </button>
-
         <button
           onClick={() => cambiarVistaMobile('lista')}
           className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-colors ${
@@ -340,6 +340,16 @@ export default function Page() {
         >
           <ListIcon size={20} className={vistaMobile === 'lista' ? 'stroke-[2.5]' : 'stroke-[1.8]'} />
           <span className="text-[10px] tracking-tight">Ver Lista</span>
+        </button>
+
+        <button
+          onClick={() => cambiarVistaMobile('mapa')}
+          className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-colors ${
+            vistaMobile === 'mapa' ? 'text-blue-600 font-bold' : 'text-slate-500'
+          }`}
+        >
+          <MapIcon size={20} className={vistaMobile === 'mapa' ? 'stroke-[2.5]' : 'stroke-[1.8]'} />
+          <span className="text-[10px] tracking-tight">Ver Mapa</span>
         </button>
 
         <button

@@ -88,6 +88,15 @@ export default function Page() {
     }
   }, [])
 
+  // Forzar al mapa a redibujarse correctamente cuando cambia la vista en el celular
+  useEffect(() => {
+    if (vistaMobile === 'mapa') {
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'))
+      }, 150)
+    }
+  }, [vistaMobile])
+
   // Filtrar reportes en tiempo real
   const reportesFiltrados = useMemo(() => {
     return reportes.filter((reporte) => {
@@ -225,7 +234,7 @@ export default function Page() {
               />
             ) : (
               <>
-                {/* Título de llamada a la acción para el usuario */}
+                {/* Título principal solicitado */}
                 <div className="py-1">
                   <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight leading-tight">
                     ¿Qué o dónde puedo donar o ayudar?
@@ -283,10 +292,8 @@ export default function Page() {
                         estaSeleccionado={reporteSeleccionado?.id === reporte.id}
                         onSelect={(rep) => {
                           setReporteSeleccionado(rep)
-                          // Al tocar un reporte en móvil, abre el mapa en esa posición
-                          if (window.innerWidth < 768) {
-                            setVistaMobile('mapa')
-                          }
+                          // Cambiamos de vista de forma segura
+                          setVistaMobile('mapa')
                         }}
                       />
                     ))

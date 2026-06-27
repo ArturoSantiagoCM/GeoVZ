@@ -219,7 +219,7 @@ export default function Page() {
                 {/* Botones de Enlaces Externos de Ayuda */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2">
                   <a
-                    href="https://redayudavenezuela.com"
+                    href="https://redatudavenezuela.com"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center justify-between p-3 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl text-xs font-bold text-red-700 transition shadow-sm group"

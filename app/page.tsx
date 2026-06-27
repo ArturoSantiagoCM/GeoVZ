@@ -76,15 +76,12 @@ export default function Page() {
   // Filtrar reportes en tiempo real
   const reportesFiltrados = useMemo(() => {
     return reportes.filter((reporte) => {
-      // Filtro por necesidad
       if (filtroTipo && reporte.tipo_necesidad !== filtroTipo) {
         return false
       }
-      // Filtro por infraestructura
       if (filtroInfraestructura && reporte.categoria_infraestructura !== filtroInfraestructura) {
         return false
       }
-      // Filtro por búsqueda de texto
       if (busqueda.trim() !== '') {
         const query = busqueda.toLowerCase()
         const cumpleDescripcion = reporte.descripcion?.toLowerCase().includes(query) || false
@@ -123,7 +120,7 @@ export default function Page() {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-50 gap-4">
         <LoaderComponent />
-        <p className="text-sm font-semibold text-slate-600 animate-pulse">
+        <p className="text-sm font-semibold text-slate-600 animate-pulse px-4 text-center">
           Conectando con la Red de Emergencias GeoVZ...
         </p>
       </div>
@@ -133,39 +130,39 @@ export default function Page() {
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-slate-100 font-sans">
       {/* Cabecera / Navbar */}
-      <header className="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0 shadow-md z-10">
+      <header className="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 sm:px-6 shrink-0 shadow-md z-10">
         <div className="flex items-center gap-3">
           <Image 
             src="/venezuela.png" 
             alt="Mapa de Venezuela"
             width={32} 
             height={32}
-            className="object-contain"
+            className="object-contain shrink-0"
             priority
           />
-          <div>
-            <h1 className="text-lg font-black tracking-tight text-white flex items-center gap-1.5">
-              GeoVZ 
+          <div className="min-w-0">
+            <h1 className="text-base sm:text-lg font-black tracking-tight text-white flex items-center gap-1.5 truncate">
+              GeoVZ <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">Venezuela</span>
             </h1>
-            <p className="text-[10px] text-slate-400">Plataforma Ciudadana de Monitoreo de Crisis en Tiempo Real</p>
+            <p className="text-[9px] sm:text-[10px] text-slate-400 truncate">Monitoreo de Crisis en Tiempo Real</p>
           </div>
         </div>
 
-        {/* Stats de Cabecera */}
-        <div className="hidden sm:flex items-center gap-6">
+        {/* Stats de Cabecera - Ocultos en pantallas muy pequeñas, visibles desde sm */}
+        <div className="hidden sm:flex items-center gap-4 md:gap-6">
           <div className="text-right">
-            <span className="text-[10px] text-slate-400 uppercase block font-bold tracking-wider">Reportes Totales</span>
-            <span className="text-sm font-bold text-white">{estadisticas.total}</span>
+            <span className="text-[9px] md:text-[10px] text-slate-400 uppercase block font-bold tracking-wider">Reportes Totales</span>
+            <span className="text-xs md:text-sm font-bold text-white">{estadisticas.total}</span>
           </div>
           <div className="h-8 w-px bg-slate-800" />
           <div className="text-right">
-            <span className="text-[10px] text-slate-400 uppercase block font-bold tracking-wider">Falta de Maquinaria</span>
-            <span className="text-sm font-bold text-blue-400">{estadisticas.MaquiRescate}</span>
+            <span className="text-[9px] md:text-[10px] text-slate-400 uppercase block font-bold tracking-wider">Maquinaria</span>
+            <span className="text-xs md:text-sm font-bold text-blue-400">{estadisticas.MaquiRescate}</span>
           </div>
           <div className="h-8 w-px bg-slate-800" />
           <div className="text-right">
-            <span className="text-[10px] text-slate-400 uppercase block font-bold tracking-wider">Falta de Rescatista</span>
-            <span className="text-sm font-bold text-orange-400">{estadisticas.EquiRescate}</span>
+            <span className="text-[9px] md:text-[10px] text-slate-400 uppercase block font-bold tracking-wider">Rescatistas</span>
+            <span className="text-xs md:text-sm font-bold text-orange-400">{estadisticas.EquiRescate}</span>
           </div>
         </div>
       </header>
@@ -174,10 +171,10 @@ export default function Page() {
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
         
         {/* Barra Lateral (Sidebar) */}
-        <aside className="w-full md:w-[380px] lg:w-[420px] bg-white border-r border-slate-200 flex flex-col h-1/2 md:h-full shrink-0 overflow-hidden shadow-sm">
+        <aside className="w-full md:w-[380px] lg:w-[420px] bg-white border-b md:border-b-0 md:border-r border-slate-200 flex flex-col h-[45%] md:h-full shrink-0 overflow-hidden shadow-sm z-10">
           {/* Header del Sidebar */}
-          <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+          <div className="p-3 sm:p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between shrink-0">
+            <h2 className="text-xs sm:text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
               {modoReporte ? <ShieldAlert size={16} className="text-blue-500" /> : <List size={16} />}
               {modoReporte ? 'Crear Afectación' : 'Reportes Recientes'}
             </h2>
@@ -187,7 +184,7 @@ export default function Page() {
                 setModoReporte(!modoReporte)
                 setCoordenadasSeleccionadas(null)
               }}
-              className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all ${
+              className={`flex items-center gap-1.5 text-[11px] sm:text-xs font-bold px-2.5 py-1.5 rounded-lg transition-all ${
                 modoReporte
                   ? 'bg-slate-200 hover:bg-slate-300 text-slate-700'
                   : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
@@ -208,7 +205,7 @@ export default function Page() {
           </div>
 
           {/* Contenido Dinámico del Sidebar */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4">
             {modoReporte ? (
               <FormularioReporte
                 coordenadasSeleccionadas={coordenadasSeleccionadas}
@@ -225,25 +222,25 @@ export default function Page() {
             ) : (
               <>
                 {/* Botones de Enlaces Externos de Ayuda */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2">
+                <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-2">
                   <a
-                    href="https://redayudavenezuela.com"
+                    href="https://redatudavenezuela.com"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-between p-3 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl text-xs font-bold text-red-700 transition shadow-sm group"
+                    className="flex items-center justify-between p-2.5 sm:p-3 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl text-[11px] sm:text-xs font-bold text-red-700 transition shadow-sm group"
                   >
-                    <span>Personas Desaparecidas</span>
-                    <ExternalLink size={14} className="text-red-400 group-hover:text-red-600 transition-colors" />
+                    <span className="truncate">Red Ayuda VZLA</span>
+                    <ExternalLink size={12} className="text-red-400 group-hover:text-red-600 transition-colors shrink-0 ml-1" />
                   </a>
 
                   <a
                     href="https://hospitalesenvenezuela.com"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-between p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-xs font-bold text-blue-700 transition shadow-sm group"
+                    className="flex items-center justify-between p-2.5 sm:p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-[11px] sm:text-xs font-bold text-blue-700 transition shadow-sm group"
                   >
-                    <span>Encontrados en Hospitales</span>
-                    <ExternalLink size={14} className="text-blue-400 group-hover:text-blue-600 transition-colors" />
+                    <span className="truncate">Hospitales VZLA</span>
+                    <ExternalLink size={12} className="text-blue-400 group-hover:text-blue-600 transition-colors shrink-0 ml-1" />
                   </a>
                 </div>
 
@@ -259,7 +256,7 @@ export default function Page() {
 
                 {/* Lista de Tarjetas */}
                 <div className="space-y-3">
-                  <div className="flex justify-between items-center text-xs font-medium text-slate-500 px-1">
+                  <div className="flex justify-between items-center text-[11px] sm:text-xs font-medium text-slate-500 px-1">
                     <span>Resultados de búsqueda</span>
                     <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full">
                       {reportesFiltrados.length}
@@ -276,10 +273,10 @@ export default function Page() {
                       />
                     ))
                   ) : (
-                    <div className="text-center py-10 px-4 border border-dashed border-slate-200 rounded-xl bg-slate-50 space-y-2">
-                      <HeartHandshake className="mx-auto text-slate-300" size={32} />
-                      <h4 className="text-sm font-bold text-slate-700">Sin reportes registrados</h4>
-                      <p className="text-xs text-slate-500 leading-normal max-w-[240px] mx-auto">
+                    <div className="text-center py-6 sm:py-10 px-4 border border-dashed border-slate-200 rounded-xl bg-slate-50 space-y-2">
+                      <HeartHandshake className="mx-auto text-slate-300" size={28} />
+                      <h4 className="text-xs sm:text-sm font-bold text-slate-700">Sin reportes registrados</h4>
+                      <p className="text-[11px] text-slate-500 leading-normal max-w-[240px] mx-auto">
                         No hay reportes activos que coincidan con estos filtros. Cambia tus términos de búsqueda o reporta uno nuevo.
                       </p>
                     </div>
@@ -291,12 +288,12 @@ export default function Page() {
         </aside>
 
         {/* Panel del Mapa */}
-        <main className="flex-1 h-1/2 md:h-full bg-slate-50 relative">
+        <main className="flex-1 h-[55%] md:h-full bg-slate-50 relative">
           {/* Aviso Flotante si está en Modo Reporte */}
           {modoReporte && !coordenadasSeleccionadas && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[400] w-[90%] max-w-sm bg-blue-600 text-white px-4 py-2.5 rounded-xl shadow-lg border border-blue-500/30 flex items-center gap-2 animate-bounce">
-              <span className="text-base">📍</span>
-              <p className="text-xs font-bold leading-normal text-left">
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[400] w-[92%] max-w-sm bg-blue-600 text-white px-3 py-2 rounded-xl shadow-lg border border-blue-500/30 flex items-center gap-2 animate-bounce">
+              <span className="text-sm shrink-0">📍</span>
+              <p className="text-[11px] font-bold leading-tight text-left">
                 Haz clic en el mapa para fijar el punto del incidente y rellenar el formulario.
               </p>
             </div>

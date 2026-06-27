@@ -27,8 +27,6 @@ type MobileView = 'mapa' | 'lista' | 'reportar'
 export default function Page() {
   const [reportes, setReportes] = useState<Reporte[]>([])
   const [cargando, setCargando] = useState(true)
-
-  // Control de vista activa para móviles: Inicializado por defecto en 'lista'
   const [vistaMobile, setVistaMobile] = useState<MobileView>('lista')
 
   // Estados de Filtros
@@ -41,7 +39,6 @@ export default function Page() {
   const [modoReporte, setModoReporte] = useState(false)
   const [coordenadasSeleccionadas, setCoordenadasSeleccionadas] = useState<{ lat: number; lng: number } | null>(null)
 
-  // Sincronizar el modoReporte tradicional con la navegación móvil
   const cambiarVistaMobile = (vista: MobileView) => {
     setVistaMobile(vista)
     if (vista === 'reportar') {
@@ -70,7 +67,6 @@ export default function Page() {
 
     obtenerReportesIniciales()
 
-    // Suscripción a cambios en tiempo real
     const channel = supabase
       .channel('reportes-nuevos')
       .on(
@@ -88,56 +84,62 @@ export default function Page() {
     }
   }, [])
 
-  // Forzar al mapa a redibujarse correctamente cuando cambia la vista en el celular
-  useEffect(() => {
-    if (vistaMobile === 'mapa') {
-      setTimeout(() => {
-        window.dispatchEvent(new Event('resize'))
-      }, 150)
-    }
-  }, [vistaMobile])
+  // Agrupar reportes que caen exactamente en las mismas coordenadas para el Mapa
+  const reportesAgrupadosParaMapa = useMemo(() => {
+    const mapaAgrupado: { [key: string]: Reporte } = {}
 
-  // Filtrar reportes en tiempo real
+    reportes.forEach((reporte) => {
+      // Redondeamos un poco para atrapar coordenadas idénticas o extremadamente cercanas
+      const llaveCoordenada = `${Number(reporte.latitud).toFixed(5)}_${Number(reporte.longitud).toFixed(5)}`
+
+      if (mapaAgrupado[llaveCoordenada]) {
+        // Si ya existe un reporte en esa ubicación exacta, sumamos sus descripciones y necesidades
+        mapaAgrupado[llaveCoordenada] = {
+          ...mapaAgrupado[llaveCoordenada],
+          descripcion: `${mapaAgrupado[llaveCoordenada].descripcion} | NUEVA AFECTACIÓN: ${reporte.descripcion}`,
+          // Mantenemos el tipo original dominante o creamos una etiqueta compuesta
+          tipo_necesidad: mapaAgrupado[llaveCoordenada].tipo_necesidad === reporte.tipo_necesidad 
+            ? mapaAgrupado[llaveCoordenada].tipo_necesidad 
+            : 'Múltiples Necesidades'
+        }
+      } else {
+        mapaAgrupado[llaveCoordenada] = { ...reporte }
+      }
+    })
+
+    return Object.values(mapaAgrupado)
+  }, [reportes])
+
+  // Filtrar reportes para la visualización de la lista
   const reportesFiltrados = useMemo(() => {
     return reportes.filter((reporte) => {
-      if (filtroTipo && reporte.tipo_necesidad !== filtroTipo) {
-        return false
-      }
-      if (filtroInfraestructura && reporte.categoria_infraestructura !== filtroInfraestructura) {
-        return false
-      }
+      if (filtroTipo && reporte.tipo_necesidad !== filtroTipo) return false
+      if (filtroInfraestructura && reporte.categoria_infraestructura !== filtroInfraestructura) return false
       if (busqueda.trim() !== '') {
         const query = busqueda.toLowerCase()
-        const cumpleDescripcion = reporte.descripcion?.toLowerCase().includes(query) || false
-        const cumpleEstado = reporte.estado?.toLowerCase().includes(query) || false
-        const cumpleMunicipio = reporte.municipio?.toLowerCase().includes(query) || false
-        const cumpleDireccion = reporte.direccion_texto?.toLowerCase().includes(query) || false
-        const cumpleTipo = reporte.tipo_necesidad.toLowerCase().includes(query)
-        const cumpleInfraestructura = reporte.categoria_infraestructura.toLowerCase().includes(query)
-
-        if (
-          !cumpleDescripcion &&
-          !cumpleEstado &&
-          !cumpleMunicipio &&
-          !cumpleDireccion &&
-          !cumpleTipo &&
-          !cumpleInfraestructura
-        ) {
-          return false
-        }
+        return (
+          reporte.descripcion?.toLowerCase().includes(query) ||
+          reporte.estado?.toLowerCase().includes(query) ||
+          reporte.municipio?.toLowerCase().includes(query) ||
+          reporte.direccion_texto?.toLowerCase().includes(query) ||
+          reporte.tipo_necesidad.toLowerCase().includes(query) ||
+          reporte.categoria_infraestructura.toLowerCase().includes(query)
+        )
       }
       return true
     })
   }, [reportes, filtroTipo, filtroInfraestructura, busqueda])
 
-  // Estadísticas rápidas
-  const estadisticas = useMemo(() => {
-    return {
-      total: reportes.length,
-      MaquiRescate: reportes.filter((r) => r.tipo_necesidad === 'Maquinaria de Rescate').length,
-      EquiRescate: reportes.filter((r) => r.tipo_necesidad === 'Equipo de Rescate').length,
-    }
-  }, [reportes])
+  // Manejador seguro para hacer clic en la tarjeta sin romper Leaflet
+  const manejarSeleccionTarjeta = (reporte: Reporte) => {
+    setReporteSeleccionado(reporte)
+    setVistaMobile('mapa')
+    
+    // Le damos un respiro de 200ms al DOM para cambiar de 'hidden' a 'block' antes de recalcular el mapa
+    setTimeout(() => {
+      window.dispatchEvent(new Event('resize'))
+    }, 200)
+  }
 
   if (cargando) {
     return (
@@ -170,27 +172,9 @@ export default function Page() {
             <p className="text-[9px] sm:text-[10px] text-slate-400 truncate">Plataforma Ciudadana de Monitoreo</p>
           </div>
         </div>
-
-        {/* Stats de Escritorio */}
-        <div className="hidden md:flex items-center gap-6">
-          <div className="text-right">
-            <span className="text-[10px] text-slate-400 uppercase block font-bold tracking-wider">Reportes Totales</span>
-            <span className="text-sm font-bold text-white">{estadisticas.total}</span>
-          </div>
-          <div className="h-8 w-px bg-slate-800" />
-          <div className="text-right">
-            <span className="text-[10px] text-slate-400 uppercase block font-bold tracking-wider">Falta de Maquinaria</span>
-            <span className="text-sm font-bold text-blue-400">{estadisticas.MaquiRescate}</span>
-          </div>
-          <div className="h-8 w-px bg-slate-800" />
-          <div className="text-right">
-            <span className="text-[10px] text-slate-400 uppercase block font-bold tracking-wider">Falta de Rescatista</span>
-            <span className="text-sm font-bold text-orange-400">{estadisticas.EquiRescate}</span>
-          </div>
-        </div>
       </header>
 
-      {/* Contenedor Principal Split (Sidebar + Mapa) */}
+      {/* Contenedor Principal Split */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
         
         {/* Barra Lateral / Sidebar (Lista y Formulario) */}
@@ -199,72 +183,25 @@ export default function Page() {
           ${vistaMobile === 'mapa' ? 'hidden md:flex' : 'flex'} 
           ${vistaMobile === 'lista' || vistaMobile === 'reportar' ? 'h-full' : 'h-0 md:h-full'}
         `}>
-          {/* Header del Sidebar */}
-          <div className="hidden md:flex p-4 border-b border-slate-100 bg-slate-50/50 items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-              {modoReporte ? <ShieldAlert size={16} className="text-blue-500" /> : <ListIcon size={16} />}
-              {modoReporte ? 'Crear Afectación' : 'Reportes Recientes'}
-            </h2>
-            
-            <button
-              onClick={() => {
-                setModoReporte(!modoReporte)
-                setCoordenadasSeleccionadas(null)
-              }}
-              className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all ${
-                modoReporte ? 'bg-slate-200 text-slate-700' : 'bg-blue-600 text-white shadow-sm'
-              }`}
-            >
-              {modoReporte ? 'Ver Reportes' : 'Reportar Incidente'}
-            </button>
-          </div>
-
-          {/* Contenido Dinámico con Scroll independiente */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 md:pb-4">
+          
+          <div className="flex-1 overflow-y-auto p-4 space-y-5 pb-24 md:pb-6">
             {modoReporte ? (
               <FormularioReporte
                 coordenadasSeleccionadas={coordenadasSeleccionadas}
                 setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
-                onCancel={() => {
-                  cambiarVistaMobile('lista')
-                }}
-                onSuccess={() => {
-                  cambiarVistaMobile('mapa')
-                }}
+                onCancel={() => cambiarVistaMobile('lista')}
+                onSuccess={() => cambiarVistaMobile('mapa')}
               />
             ) : (
               <>
-                {/* Título principal solicitado */}
-                <div className="py-1">
-                  <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight leading-tight">
-                    ¿Qué o dónde puedo donar o ayudar?
+                {/* Título modificado: Más grande y directo */}
+                <div className="py-2 border-b border-slate-100">
+                  <h2 className="text-3xl sm:text-4xl font-black text-slate-950 tracking-tighter leading-none uppercase">
+                    ¿DONDE PUEDO DONAR?
                   </h2>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Filtra las necesidades críticas mapeadas por los ciudadanos.
+                  <p className="text-xs font-medium text-slate-500 mt-2">
+                    Consulta las necesidades prioritarias reportadas en tiempo real.
                   </p>
-                </div>
-
-                {/* Enlaces Rápidos de Emergencia */}
-                <div className="grid grid-cols-2 gap-3 mb-2">
-                  <a
-                    href="https://redatudavenezuela.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-xl text-[11px] font-bold text-red-700 transition"
-                  >
-                    <span className="truncate">Red Ayuda</span>
-                    <ExternalLink size={12} className="text-red-400 shrink-0 ml-1" />
-                  </a>
-
-                  <a
-                    href="https://hospitalesenvenezuela.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-xl text-[11px] font-bold text-blue-700 transition"
-                  >
-                    <span className="truncate">Hospitales</span>
-                    <ExternalLink size={12} className="text-blue-400 shrink-0 ml-1" />
-                  </a>
                 </div>
 
                 <FiltrosTipo
@@ -276,10 +213,11 @@ export default function Page() {
                   setBusqueda={setBusqueda}
                 />
 
+                {/* Lista de Tarjetas */}
                 <div className="space-y-3">
-                  <div className="flex justify-between items-center text-xs font-medium text-slate-500 px-1">
-                    <span>Resultados de búsqueda</span>
-                    <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full">
+                  <div className="flex justify-between items-center text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
+                    <span>Casos Activos</span>
+                    <span className="text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-full text-xs">
                       {reportesFiltrados.length}
                     </span>
                   </div>
@@ -290,22 +228,41 @@ export default function Page() {
                         key={reporte.id}
                         reporte={reporte}
                         estaSeleccionado={reporteSeleccionado?.id === reporte.id}
-                        onSelect={(rep) => {
-                          setReporteSeleccionado(rep)
-                          // Cambiamos de vista de forma segura
-                          setVistaMobile('mapa')
-                        }}
+                        onSelect={manejarSeleccionTarjeta}
                       />
                     ))
                   ) : (
                     <div className="text-center py-10 px-4 border border-dashed border-slate-200 rounded-xl bg-slate-50 space-y-2">
                       <HeartHandshake className="mx-auto text-slate-300" size={32} />
                       <h4 className="text-sm font-bold text-slate-700">Sin reportes registrados</h4>
-                      <p className="text-xs text-slate-500">
-                        No hay reportes que coincidan con los filtros aplicados.
-                      </p>
                     </div>
                   )}
+                </div>
+
+                {/* Botones de Enlaces Externos movidos al final de la página de lista */}
+                <div className="pt-4 border-t border-slate-100 space-y-2">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">Enlaces Oficiales de Soporte</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <a
+                      href="https://redatudavenezuela.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-3 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl text-[11px] font-bold text-red-700 transition shadow-sm"
+                    >
+                      <span className="truncate">Red Ayuda</span>
+                      <ExternalLink size={12} className="text-red-400 shrink-0 ml-1" />
+                    </a>
+
+                    <a
+                      href="https://hospitalesenvenezuela.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-[11px] font-bold text-blue-700 transition shadow-sm"
+                    >
+                      <span className="truncate">Hospitales</span>
+                      <ExternalLink size={12} className="text-blue-400 shrink-0 ml-1" />
+                    </a>
+                  </div>
                 </div>
               </>
             )}
@@ -321,13 +278,36 @@ export default function Page() {
             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[400] w-[90%] max-w-sm bg-blue-600 text-white px-4 py-3 rounded-xl shadow-lg border border-blue-500/30 flex items-center gap-2 animate-bounce">
               <span className="text-base shrink-0">📍</span>
               <p className="text-xs font-bold leading-tight text-left">
-                Toca el mapa en el punto exacto del incidente para marcarlo.
+                Toca el mapa en el punto exacto para marcar el incidente.
               </p>
             </div>
           )}
 
+          {/* DICCIONARIO / LEYENDA FLOTANTE DE COLORES EN EL MAPA */}
+          <div className="absolute bottom-4 left-4 z-[400] bg-white/95 backdrop-blur-sm p-3 rounded-xl shadow-xl border border-slate-200 max-w-[220px] text-slate-800 space-y-2 pointer-events-auto">
+            <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Significado de Alertas</h4>
+            <div className="space-y-1.5 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-blue-500 inline-block shrink-0"></span>
+                <span className="font-medium truncate text-slate-700">Maquinaria de Rescate</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-orange-500 inline-block shrink-0"></span>
+                <span className="font-medium truncate text-slate-700">Equipo de Rescatistas</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block shrink-0"></span>
+                <span className="font-medium truncate text-slate-700">Insumos y Medicamentos</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-purple-500 inline-block shrink-0"></span>
+                <span className="font-medium truncate text-slate-700">Múltiples Necesidades</span>
+              </div>
+            </div>
+          </div>
+
           <Mapa
-            reportes={reportesFiltrados}
+            reportes={reportesAgrupadosParaMapa}
             reporteSeleccionado={reporteSeleccionado}
             modoReporte={modoReporte}
             coordenadasSeleccionadas={coordenadasSeleccionadas}
@@ -337,7 +317,7 @@ export default function Page() {
         </main>
       </div>
 
-      {/* BARRA DE NAVEGACIÓN INFERIOR (BOTTOM NAVIGATION) - Móviles */}
+      {/* BARRA DE NAVEGACIÓN INFERIOR (BOTTOM NAVIGATION) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 flex items-center justify-around px-2 z-[500] shadow-xl">
         <button
           onClick={() => cambiarVistaMobile('lista')}

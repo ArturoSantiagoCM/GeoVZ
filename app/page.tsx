@@ -10,7 +10,7 @@ import TarjetaReporte from '@/components/TarjetaReporte'
 import FormularioReporte from '@/components/FormularioReporte'
 import Image from 'next/image' 
 
-// Cargamos el mapa desactivando el SSR (Server-Side Rendering)
+// Cargamos el mapa desactivando estrictamente el SSR (Server-Side Rendering) para que Vercel no falle
 const Mapa = dynamic(() => import('@/components/Mapa'), {
   ssr: false,
   loading: () => (
@@ -52,17 +52,22 @@ export default function Page() {
   // Cargar reportes iniciales y configurar canal en tiempo real
   useEffect(() => {
     const obtenerReportesIniciales = async () => {
-      const { data, error } = await supabase
-        .from('reportes')
-        .select('*')
-        .order('creado_en', { ascending: false })
+      try {
+        const { data, error } = await supabase
+          .from('reportes')
+          .select('*')
+          .order('creado_en', { ascending: false })
 
-      if (error) {
-        console.error('Error al traer los reportes:', error)
-      } else if (data) {
-        setReportes(data as Reporte[])
+        if (error) {
+          console.error('Error al traer los reportes:', error)
+        } else if (data) {
+          setReportes(data as Reporte[])
+        }
+      } catch (err) {
+        console.error('Error de conexión con Supabase:', err)
+      } finally {
+        setCargando(false)
       }
-      setCargando(false)
     }
 
     obtenerReportesIniciales()
@@ -84,20 +89,20 @@ export default function Page() {
     }
   }, [])
 
-  // Agrupar reportes que caen exactamente en las mismas coordenadas para el Mapa
+  // Agrupar reportes en las mismas coordenadas exactas de forma segura
   const reportesAgrupadosParaMapa = useMemo(() => {
+    if (!reportes.length) return []
     const mapaAgrupado: { [key: string]: Reporte } = {}
 
     reportes.forEach((reporte) => {
-      // Redondeamos un poco para atrapar coordenadas idénticas o extremadamente cercanas
-      const llaveCoordenada = `${Number(reporte.latitud).toFixed(5)}_${Number(reporte.longitud).toFixed(5)}`
+      const lat = Number(reporte.latitud || 0).toFixed(5)
+      const lng = Number(reporte.longitud || 0).toFixed(5)
+      const llaveCoordenada = `${lat}_${lng}`
 
       if (mapaAgrupado[llaveCoordenada]) {
-        // Si ya existe un reporte en esa ubicación exacta, sumamos sus descripciones y necesidades
         mapaAgrupado[llaveCoordenada] = {
           ...mapaAgrupado[llaveCoordenada],
-          descripcion: `${mapaAgrupado[llaveCoordenada].descripcion} | NUEVA AFECTACIÓN: ${reporte.descripcion}`,
-          // Mantenemos el tipo original dominante o creamos una etiqueta compuesta
+          descripcion: `${mapaAgrupado[llaveCoordenada].descripcion} | OTRA NECESIDAD: ${reporte.descripcion}`,
           tipo_necesidad: mapaAgrupado[llaveCoordenada].tipo_necesidad === reporte.tipo_necesidad 
             ? mapaAgrupado[llaveCoordenada].tipo_necesidad 
             : 'Múltiples Necesidades'
@@ -130,15 +135,17 @@ export default function Page() {
     })
   }, [reportes, filtroTipo, filtroInfraestructura, busqueda])
 
-  // Manejador seguro para hacer clic en la tarjeta sin romper Leaflet
+  // Manejador protegido ante cambios de viewport para evitar el error de carga
   const manejarSeleccionTarjeta = (reporte: Reporte) => {
     setReporteSeleccionado(reporte)
     setVistaMobile('mapa')
     
-    // Le damos un respiro de 200ms al DOM para cambiar de 'hidden' a 'block' antes de recalcular el mapa
-    setTimeout(() => {
-      window.dispatchEvent(new Event('resize'))
-    }, 200)
+    // Ejecutar redibujado asíncrono para asegurar que el contenedor de Leaflet ya sea visible
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'))
+      }, 100)
+    }
   }
 
   if (cargando) {
@@ -194,13 +201,13 @@ export default function Page() {
               />
             ) : (
               <>
-                {/* Título modificado: Más grande y directo */}
+                {/* TÍTULO RECONFIGURADO: Enorme, en mayúsculas y destacado */}
                 <div className="py-2 border-b border-slate-100">
-                  <h2 className="text-3xl sm:text-4xl font-black text-slate-950 tracking-tighter leading-none uppercase">
+                  <h2 className="text-4xl sm:text-5xl font-black text-slate-950 tracking-tighter leading-none block">
                     ¿DONDE PUEDO DONAR?
                   </h2>
-                  <p className="text-xs font-medium text-slate-500 mt-2">
-                    Consulta las necesidades prioritarias reportadas en tiempo real.
+                  <p className="text-xs font-semibold text-slate-500 mt-2">
+                    Consulta las necesidades críticas en tiempo real.
                   </p>
                 </div>
 
@@ -216,7 +223,7 @@ export default function Page() {
                 {/* Lista de Tarjetas */}
                 <div className="space-y-3">
                   <div className="flex justify-between items-center text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
-                    <span>Casos Activos</span>
+                    <span>Casos Reportados</span>
                     <span className="text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-full text-xs">
                       {reportesFiltrados.length}
                     </span>
@@ -234,14 +241,14 @@ export default function Page() {
                   ) : (
                     <div className="text-center py-10 px-4 border border-dashed border-slate-200 rounded-xl bg-slate-50 space-y-2">
                       <HeartHandshake className="mx-auto text-slate-300" size={32} />
-                      <h4 className="text-sm font-bold text-slate-700">Sin reportes registrados</h4>
+                      <h4 className="text-sm font-bold text-slate-700">Sin reportes activos</h4>
                     </div>
                   )}
                 </div>
 
-                {/* Botones de Enlaces Externos movidos al final de la página de lista */}
+                {/* BOTONES DE ENLACES MOVIDOS AL FINAL DE LA LISTA */}
                 <div className="pt-4 border-t border-slate-100 space-y-2">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">Enlaces Oficiales de Soporte</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">Soporte y Enlaces de Emergencia</p>
                   <div className="grid grid-cols-2 gap-3">
                     <a
                       href="https://redatudavenezuela.com"
@@ -278,7 +285,7 @@ export default function Page() {
             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[400] w-[90%] max-w-sm bg-blue-600 text-white px-4 py-3 rounded-xl shadow-lg border border-blue-500/30 flex items-center gap-2 animate-bounce">
               <span className="text-base shrink-0">📍</span>
               <p className="text-xs font-bold leading-tight text-left">
-                Toca el mapa en el punto exacto para marcar el incidente.
+                Toca el mapa en el punto del incidente para fijarlo.
               </p>
             </div>
           )}

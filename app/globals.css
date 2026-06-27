@@ -1,4 +1,7 @@
-@import "tailwindcss";
+/* Si experimentas errores CSS en Vercel, cambia el @import "tailwindcss" por las tres directivas clásicas: */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
   --background: #ffffff;

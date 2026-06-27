@@ -232,7 +232,7 @@ export default function Page() {
                     rel="noopener noreferrer"
                     className="flex items-center justify-between p-3 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl text-xs font-bold text-red-700 transition shadow-sm group"
                   >
-                    <span>Red Ayuda Venezuela</span>
+                    <span>Personas Desaparecidas</span>
                     <ExternalLink size={14} className="text-red-400 group-hover:text-red-600 transition-colors" />
                   </a>
 
@@ -242,7 +242,7 @@ export default function Page() {
                     rel="noopener noreferrer"
                     className="flex items-center justify-between p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-xs font-bold text-blue-700 transition shadow-sm group"
                   >
-                    <span>Hospitales en Venezuela</span>
+                    <span>Encontrados en Hospitales</span>
                     <ExternalLink size={14} className="text-blue-400 group-hover:text-blue-600 transition-colors" />
                   </a>
                 </div>

@@ -1,218 +1,125 @@
 'use client'
-import { useEffect } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet'
+import { MapPin, Phone, Calendar, ChevronRight } from 'lucide-react'
 import { Reporte } from '@/types'
-import L from 'leaflet'
 
-// Colores modernos y llamativos para el mapa
+// Colores correspondientes a cada tipo de necesidad
 const coloresPorTipo: Record<string, string> = {
-  'Agua': '#3b82f6',              // Azul moderno
-  'Comida': '#f97316',            // Naranja moderno
+  'Agua': '#3b82f6',              // Azul
+  'Comida': '#f97316',            // Naranja
   'Ropa': '#eab308',              // Amarillo
   'Medicamentos': '#a855f7',      // Púrpura
   'Equipo de Rescate': '#ef4444',  // Rojo
   'Equipo Médico': '#db2777',     // Rosa
   'Equipo Veterinario': '#10b981',// Verde
-  'Maquinaria de Rescate': '#4b5563', // Gris oscuro
+  'Maquinaria de Rescate': '#4b5563', // Gris
   'Objetos para Rescate': '#0d9488'  // Turquesa
 }
 
-// Función para crear un marcador dinámico moderno tipo Pin con SVG (REDUCIDO)
-const crearIconoPersonalizado = (tipo: string) => {
-  const color = coloresPorTipo[tipo] || '#ef4444'
-  
-  // Se redujo el tamaño del contenedor a 20x26 y el SVG interno proporcionalmente
-  const svgHtml = `
-    <div style="filter: drop-shadow(0px 1.5px 2.5px rgba(0,0,0,0.3)); display: flex; align-items: center; justify-content: center; width: 20px; height: 26px;">
-      <svg width="20" height="26" viewBox="0 0 30 42" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M15 0C6.71573 0 0 6.71573 0 15C0 26.25 15 42 15 42C15 42 30 26.25 30 15C30 6.71573 23.2843 0 15 0ZM15 20.25C12.1005 20.25 9.75 17.8995 9.75 15C9.75 12.1005 12.1005 9.75 15 9.75C17.8995 9.75 20.25 12.1005 20.25 15C20.25 17.8995 17.8995 20.25 15 20.25Z" fill="${color}"/>
-        <circle cx="15" cy="15" r="5" fill="white"/>
-      </svg>
-    </div>
-  `
-  
-  return L.divIcon({
-    html: svgHtml,
-    className: 'custom-marker-icon',
-    iconSize: [20, 26],       // Antes: [32, 42]
-    iconAnchor: [10, 26],     // Mitad del ancho, total del alto para que apoye la punta en la coordenada
-    popupAnchor: [0, -26]     // Desplazamiento del popup hacia arriba de la punta del pin
-  })
+interface TarjetaReporteProps {
+  reporte: Reporte
+  onSelect: (reporte: Reporte) => void
+  estaSeleccionado: boolean
 }
 
-// Icono para marcar la ubicación elegida temporalmente en el formulario (REDUCIDO)
-const crearIconoTemporal = () => {
-  const svgHtml = `
-    <div style="position: relative; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.35)); display: flex; align-items: center; justify-content: center; width: 24px; height: 32px;">
-      <svg width="24" height="32" viewBox="0 0 30 42" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M15 0C6.71573 0 0 6.71573 0 15C0 26.25 15 42 15 42C15 42 30 26.25 30 15C30 6.71573 23.2843 0 15 0ZM15 20.25C12.1005 20.25 9.75 17.8995 9.75 15C9.75 12.1005 12.1005 9.75 15 9.75C17.8995 9.75 20.25 12.1005 20.25 15C20.25 17.8995 17.8995 20.25 15 20.25Z" fill="#2563eb"/>
-        <circle cx="15" cy="15" r="5" fill="white"/>
-      </svg>
-      <span style="position: absolute; width: 16px; height: 16px; background: rgba(37, 99, 235, 0.4); border-radius: 50%; animation: pulse-ping 1.5s infinite; z-index: -1;"></span>
-    </div>
-  `
+export default function TarjetaReporte({
+  reporte,
+  onSelect,
+  estaSeleccionado
+}: TarjetaReporteProps) {
+  const color = coloresPorTipo[reporte.tipo_necesidad] || '#ef4444'
 
-  return L.divIcon({
-    html: svgHtml,
-    className: 'temp-marker-icon',
-    iconSize: [24, 32],       // Antes: [36, 46]
-    iconAnchor: [12, 32]      // Mitad del ancho, total del alto
-  })
-}
-
-// Componente para escuchar clics en el mapa
-function MapClickHandler({
-  modoReporte,
-  setCoordenadasSeleccionadas
-}: {
-  modoReporte: boolean
-  setCoordenadasSeleccionadas: (coords: { lat: number; lng: number } | null) => void
-}) {
-  useMapEvents({
-    click(e) {
-      if (modoReporte) {
-        setCoordenadasSeleccionadas({ lat: e.latlng.lat, lng: e.latlng.lng })
-      }
-    }
-  })
-  return null
-}
-
-// Componente para controlar dinámicamente el centro/zoom del mapa
-function MapController({
-  reporteSeleccionado,
-  coordenadasSeleccionadas
-}: {
-  reporteSeleccionado: Reporte | null
-  coordenadasSeleccionadas: { lat: number; lng: number } | null
-}) {
-  const map = useMap()
-
-  useEffect(() => {
-    if (reporteSeleccionado) {
-      map.flyTo([reporteSeleccionado.latitud, reporteSeleccionado.longitud], 13, {
-        animate: true,
-        duration: 1.5
+  // Formateador de fecha simple
+  const formatearFecha = (fechaString: string) => {
+    try {
+      const fecha = new Date(fechaString)
+      return fecha.toLocaleDateString('es-VE', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit'
       })
+    } catch {
+      return fechaString
     }
-  }, [reporteSeleccionado, map])
+  }
 
-  useEffect(() => {
-    if (coordenadasSeleccionadas) {
-      map.flyTo([coordenadasSeleccionadas.lat, coordenadasSeleccionadas.lng], 13, {
-        animate: true,
-        duration: 1.5
-      })
-    }
-  }, [coordenadasSeleccionadas, map])
-
-  return null
-}
-
-interface MapaProps {
-  reportes: Reporte[]
-  reporteSeleccionado: Reporte | null
-  modoReporte: boolean
-  coordenadasSeleccionadas: { lat: number; lng: number } | null
-  setCoordenadasSeleccionadas: (coords: { lat: number; lng: number } | null) => void
-  onMarkerClick: (reporte: Reporte) => void
-}
-
-export default function Mapa({
-  reportes,
-  reporteSeleccionado,
-  modoReporte,
-  coordenadasSeleccionadas,
-  setCoordenadasSeleccionadas,
-  onMarkerClick
-}: MapaProps) {
   return (
-    <div className="w-full h-full relative">
-      {/* Estilo para la animación del ping en el marcador temporal */}
-      <style jsx global>{`
-        @keyframes pulse-ping {
-          0% {
-            transform: scale(0.6);
-            opacity: 1;
-          }
-          100% {
-            transform: scale(2.2);
-            opacity: 0;
-          }
-        }
-      `}</style>
+    <div
+      onClick={() => onSelect(reporte)}
+      className={`group relative p-4 rounded-xl border text-left cursor-pointer transition-all duration-200 select-none ${
+        estaSeleccionado
+          ? 'bg-slate-50 border-blue-500 shadow-md ring-1 ring-blue-500/20'
+          : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm hover:-translate-y-0.5'
+      }`}
+    >
+      {/* Indicador de color lateral */}
+      <div
+        className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-xl transition-all"
+        style={{ backgroundColor: color }}
+      />
 
-      <MapContainer
-        center={[10.3946, -67.63242]} 
-        zoom={7}
-        style={{ height: '100%', width: '100%' }}
-        className="z-0"
-      >
-        <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        />
-        
-        {/* Controladores internos */}
-        <MapClickHandler
-          modoReporte={modoReporte}
-          setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
-        />
-        <MapController 
-          reporteSeleccionado={reporteSeleccionado} 
-          coordenadasSeleccionadas={coordenadasSeleccionadas} 
-        />
-
-        {/* Pines de Reportes Existentes */}
-        {reportes.map(reporte => {
-          const icono = crearIconoPersonalizado(reporte.tipo_necesidad)
-          return (
-            <Marker
-              key={reporte.id}
-              position={[reporte.latitud, reporte.longitud]}
-              icon={icono}
-              eventHandlers={{
-                click: () => onMarkerClick(reporte)
-              }}
+      <div className="pl-2 space-y-2">
+        {/* Encabezado: Necesidad e Infraestructura */}
+        <div className="flex justify-between items-start gap-2">
+          <div>
+            <h3
+              className="text-sm font-bold tracking-tight uppercase"
+              style={{ color }}
             >
-              <Popup>
-                <div className="text-sm font-sans p-1 text-slate-800">
-                  <div className="font-bold border-b border-slate-100 pb-1 mb-1" style={{ color: coloresPorTipo[reporte.tipo_necesidad] || '#ef4444' }}>
-                    {reporte.tipo_necesidad.toUpperCase()}
-                  </div>
-                  {reporte.descripcion && <p className="mb-2 italic text-slate-600">"{reporte.descripcion}"</p>}
-                  <div className="text-xs space-y-1">
-                    <div><strong>Infraestructura:</strong> {reporte.categoria_infraestructura.replace('_', ' ')}</div>
-                    {reporte.estado && <div><strong>Estado:</strong> {reporte.estado}</div>}
-                    {reporte.municipio && <div><strong>Municipio:</strong> {reporte.municipio}</div>}
-                    {reporte.direccion_texto && <div><strong>Dirección:</strong> {reporte.direccion_texto}</div>}
-                    {reporte.contacto && (
-                      <div className="mt-2 pt-1 border-t border-slate-100">
-                        <strong>Contacto:</strong> {reporte.contacto}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </Popup>
-            </Marker>
-          )
-        })}
+              {reporte.tipo_necesidad}
+            </h3>
+            <span className="inline-block px-2 py-0.5 mt-1 bg-slate-100 rounded text-[10px] font-semibold text-slate-600 uppercase">
+              {reporte.categoria_infraestructura.replace('_', ' ')}
+            </span>
+          </div>
+          <ChevronRight
+            size={16}
+            className={`text-slate-300 group-hover:text-slate-500 transition-transform ${
+              estaSeleccionado ? 'text-blue-500 translate-x-1' : ''
+            }`}
+          />
+        </div>
 
-        {/* Pin Temporal para Nuevo Reporte en edición */}
-        {modoReporte && coordenadasSeleccionadas && (
-          <Marker
-            position={[coordenadasSeleccionadas.lat, coordenadasSeleccionadas.lng]}
-            icon={crearIconoTemporal()}
-          >
-            <Popup>
-              <div className="text-xs font-sans text-slate-800 p-1 text-center">
-                <strong>Ubicación seleccionada</strong>
-                <p className="text-slate-500 mt-1">Completa el formulario en la barra lateral para registrar el reporte.</p>
-              </div>
-            </Popup>
-          </Marker>
+        {/* Descripción */}
+        {reporte.descripcion && (
+          <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed italic">
+            "{reporte.descripcion}"
+          </p>
         )}
-      </MapContainer>
+
+        {/* Información de Ubicación */}
+        <div className="space-y-1 pt-1.5 border-t border-slate-100 text-[11px] text-slate-500">
+          <div className="flex items-center gap-1.5">
+            <MapPin size={12} className="text-slate-400 shrink-0" />
+            <span className="truncate">
+              {reporte.estado ? `${reporte.estado}, ` : ''}
+              {reporte.municipio ? `${reporte.municipio}` : ''}
+            </span>
+          </div>
+          {reporte.direccion_texto && (
+            <div className="pl-4 text-[10px] text-slate-400 truncate">
+              {reporte.direccion_texto}
+            </div>
+          )}
+        </div>
+
+        {/* Info inferior: Contacto y Fecha */}
+        <div className="flex justify-between items-center text-[10px] text-slate-400 pt-1">
+          {reporte.contacto ? (
+            <div className="flex items-center gap-1 text-slate-500">
+              <Phone size={10} className="text-slate-400 shrink-0" />
+              <span className="font-medium truncate max-w-[120px]">{reporte.contacto}</span>
+            </div>
+          ) : (
+            <div />
+          )}
+
+          <div className="flex items-center gap-1">
+            <Calendar size={10} className="text-slate-400 shrink-0" />
+            <span>{formatearFecha(reporte.creado_en)}</span>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

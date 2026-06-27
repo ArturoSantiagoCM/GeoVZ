@@ -8,7 +8,8 @@ import dynamic from 'next/dynamic'
 import FiltrosTipo from '@/components/FiltrosTipo'
 import TarjetaReporte from '@/components/TarjetaReporte'
 import FormularioReporte from '@/components/FormularioReporte'
-import { PlusCircle, List, Activity, ShieldAlert, HeartHandshake } from 'lucide-react'
+import Image from 'next/image' 
+import { PlusCircle, List, ShieldAlert, HeartHandshake } from 'lucide-react'
 
 // Cargamos el mapa desactivando el SSR (Server-Side Rendering)
 const Mapa = dynamic(() => import('@/components/Mapa'), {
@@ -133,8 +134,15 @@ export default function Page() {
     <div className="flex flex-col h-screen overflow-hidden bg-slate-100 font-sans">
       {/* Cabecera / Navbar */}
       <header className="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0 shadow-md z-10">
-        <div className="flex items-center gap-2">
-          <Activity className="text-blue-500 animate-pulse" size={24} />
+        <div className="flex items-center gap-3">
+          <Image 
+            src="/venezuela.png" 
+            alt="Mapa de Venezuela"
+            width={32} 
+            height={32}
+            className="object-contain"
+            priority
+          />
           <div>
             <h1 className="text-lg font-black tracking-tight text-white flex items-center gap-1.5">
               GeoVZ <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">Venezuela</span>
@@ -311,8 +319,16 @@ export default function Page() {
 function LoaderComponent() {
   return (
     <div className="relative flex items-center justify-center">
-      <div className="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
-      <Activity className="absolute text-blue-500 animate-pulse" size={20} />
+      <div className="w-14 h-14 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+      <div className="absolute animate-pulse">
+        <Image 
+          src="/venezuela.png" 
+          alt="Cargando..."
+          width={24} 
+          height={24}
+          className="object-contain"
+        />
+      </div>
     </div>
   )
 }

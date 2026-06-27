@@ -88,7 +88,7 @@ export default function TarjetaReporte({
         )}
 
         {/* Información de Ubicación */}
-        <div className="space-y-1 pt-1.5 border-t border-slate-100 text-[11px] text-slate-500">
+       <div className="space-y-1 pt-1.5 border-t border-slate-100 text-[11px] text-slate-500">
           <div className="flex items-center gap-1.5">
             <MapPin size={12} className="text-slate-400 shrink-0" />
             <span className="truncate">
@@ -101,6 +101,13 @@ export default function TarjetaReporte({
               {reporte.direccion_texto}
             </div>
           )}
+          <div className="flex items-center gap-1.5">
+            <MapPin size={12} className="text-slate-400 shrink-0" />
+            <span className="truncate">
+              {reporte.latitud ? `${reporte.latitud}, ` : ''}
+              {reporte.longitud ? `${reporte.longitud}` : ''}
+            </span>
+          </div>
         </div>
 
         {/* Info inferior: Contacto y Fecha */}

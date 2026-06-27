@@ -78,24 +78,6 @@ function MapClickHandler({
   return null
 }
 
-// Componente para escuchar clics en el mapa
-function MapClickHandler({
-  modoReporte,
-  setCoordenadasSeleccionadas
-}: {
-  modoReporte: boolean
-  setCoordenadasSeleccionadas: (coords: { lat: number; lng: number } | null) => void
-}) {
-  useMapEvents({
-    click(e) {
-      if (modoReporte) {
-        setCoordenadasSeleccionadas({ lat: e.latlng.lat, lng: e.latlng.lng })
-      }
-    }
-  })
-  return null
-}
-
 // Componente para controlar dinámicamente el centro/zoom del mapa
 function MapController({
   reporteSeleccionado,
@@ -162,7 +144,7 @@ export default function Mapa({
 
       <MapContainer
         center={[10.3946, -67.63242]} 
-        zoom={8}
+        zoom={7}
         style={{ height: '100%', width: '100%' }}
         className="z-0"
       >

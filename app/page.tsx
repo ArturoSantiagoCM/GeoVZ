@@ -1,5 +1,6 @@
 'use client'
 
+import { ExternalLink } from 'lucide-react'
 import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Reporte } from '@/types'
@@ -111,8 +112,8 @@ export default function Page() {
   const estadisticas = useMemo(() => {
     return {
       total: reportes.length,
-      agua: reportes.filter((r) => r.tipo_necesidad === 'Agua').length,
-      comida: reportes.filter((r) => r.tipo_necesidad === 'Comida').length,
+      MaquiRescate: reportes.filter((r) => r.tipo_necesidad === 'Maquinaria de Rescate').length,
+      EquiRescate: reportes.filter((r) => r.tipo_necesidad === 'Equipo de Rescate').length,
       salud: reportes.filter((r) => r.tipo_necesidad === 'Medicamentos' || r.tipo_necesidad === 'Equipo Médico').length
     }
   }, [reportes])
@@ -150,13 +151,13 @@ export default function Page() {
           </div>
           <div className="h-8 w-px bg-slate-800" />
           <div className="text-right">
-            <span className="text-[10px] text-slate-400 uppercase block font-bold tracking-wider">Falta de Agua</span>
-            <span className="text-sm font-bold text-blue-400">{estadisticas.agua}</span>
+            <span className="text-[10px] text-slate-400 uppercase block font-bold tracking-wider">Falta de Maquinaria</span>
+            <span className="text-sm font-bold text-blue-400">{estadisticas.MaquiRescate}</span>
           </div>
           <div className="h-8 w-px bg-slate-800" />
           <div className="text-right">
-            <span className="text-[10px] text-slate-400 uppercase block font-bold tracking-wider">Crisis de Alimentos</span>
-            <span className="text-sm font-bold text-orange-400">{estadisticas.comida}</span>
+            <span className="text-[10px] text-slate-400 uppercase block font-bold tracking-wider">Falta de Rescatista</span>
+            <span className="text-sm font-bold text-orange-400">{estadisticas.EquiRescate}</span>
           </div>
         </div>
       </header>
@@ -211,11 +212,33 @@ export default function Page() {
                 onSuccess={() => {
                   setModoReporte(false)
                   setCoordenadasSeleccionadas(null)
-                  // Notificación rápida o recarga implícita por canal de Supabase
                 }}
               />
             ) : (
               <>
+                {/* Botones de Enlaces Externos de Ayuda */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2">
+                  <a
+                    href="https://redatudavenezuela.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between p-3 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl text-xs font-bold text-red-700 transition shadow-sm group"
+                  >
+                    <span>Red Ayuda Venezuela</span>
+                    <ExternalLink size={14} className="text-red-400 group-hover:text-red-600 transition-colors" />
+                  </a>
+
+                  <a
+                    href="https://hospitalesenvenezuela.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-xs font-bold text-blue-700 transition shadow-sm group"
+                  >
+                    <span>Hospitales en Venezuela</span>
+                    <ExternalLink size={14} className="text-blue-400 group-hover:text-blue-600 transition-colors" />
+                  </a>
+                </div>
+
                 {/* Filtros */}
                 <FiltrosTipo
                   filtroTipo={filtroTipo}

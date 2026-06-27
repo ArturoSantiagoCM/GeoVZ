@@ -17,13 +17,14 @@ const coloresPorTipo: Record<string, string> = {
   'Objetos para Rescate': '#0d9488'  // Turquesa
 }
 
-// Función para crear un marcador dinámico moderno tipo Pin con SVG
+// Función para crear un marcador dinámico moderno tipo Pin con SVG (REDUCIDO)
 const crearIconoPersonalizado = (tipo: string) => {
   const color = coloresPorTipo[tipo] || '#ef4444'
   
+  // Se redujo el tamaño del contenedor a 20x26 y el SVG interno proporcionalmente
   const svgHtml = `
-    <div style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.35)); display: flex; align-items: center; justify-content: center; width: 32px; height: 42px;">
-      <svg width="32" height="42" viewBox="0 0 30 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <div style="filter: drop-shadow(0px 1.5px 2.5px rgba(0,0,0,0.3)); display: flex; align-items: center; justify-content: center; width: 20px; height: 26px;">
+      <svg width="20" height="26" viewBox="0 0 30 42" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M15 0C6.71573 0 0 6.71573 0 15C0 26.25 15 42 15 42C15 42 30 26.25 30 15C30 6.71573 23.2843 0 15 0ZM15 20.25C12.1005 20.25 9.75 17.8995 9.75 15C9.75 12.1005 12.1005 9.75 15 9.75C17.8995 9.75 20.25 12.1005 20.25 15C20.25 17.8995 17.8995 20.25 15 20.25Z" fill="${color}"/>
         <circle cx="15" cy="15" r="5" fill="white"/>
       </svg>
@@ -33,30 +34,48 @@ const crearIconoPersonalizado = (tipo: string) => {
   return L.divIcon({
     html: svgHtml,
     className: 'custom-marker-icon',
-    iconSize: [32, 42],
-    iconAnchor: [16, 42],
-    popupAnchor: [0, -42]
+    iconSize: [20, 26],       // Antes: [32, 42]
+    iconAnchor: [10, 26],     // Mitad del ancho, total del alto para que apoye la punta en la coordenada
+    popupAnchor: [0, -26]     // Desplazamiento del popup hacia arriba de la punta del pin
   })
 }
 
-// Icono para marcar la ubicación elegida temporalmente en el formulario
+// Icono para marcar la ubicación elegida temporalmente en el formulario (REDUCIDO)
 const crearIconoTemporal = () => {
   const svgHtml = `
-    <div style="position: relative; filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.4)); display: flex; align-items: center; justify-content: center; width: 36px; height: 46px;">
-      <svg width="36" height="46" viewBox="0 0 30 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <div style="position: relative; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.35)); display: flex; align-items: center; justify-content: center; width: 24px; height: 32px;">
+      <svg width="24" height="32" viewBox="0 0 30 42" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M15 0C6.71573 0 0 6.71573 0 15C0 26.25 15 42 15 42C15 42 30 26.25 30 15C30 6.71573 23.2843 0 15 0ZM15 20.25C12.1005 20.25 9.75 17.8995 9.75 15C9.75 12.1005 12.1005 9.75 15 9.75C17.8995 9.75 20.25 12.1005 20.25 15C20.25 17.8995 17.8995 20.25 15 20.25Z" fill="#2563eb"/>
         <circle cx="15" cy="15" r="5" fill="white"/>
       </svg>
-      <span style="position: absolute; width: 24px; height: 24px; background: rgba(37, 99, 235, 0.4); border-radius: 50%; animation: pulse-ping 1.5s infinite; z-index: -1;"></span>
+      <span style="position: absolute; width: 16px; height: 16px; background: rgba(37, 99, 235, 0.4); border-radius: 50%; animation: pulse-ping 1.5s infinite; z-index: -1;"></span>
     </div>
   `
 
   return L.divIcon({
     html: svgHtml,
     className: 'temp-marker-icon',
-    iconSize: [36, 46],
-    iconAnchor: [18, 46]
+    iconSize: [24, 32],       // Antes: [36, 46]
+    iconAnchor: [12, 32]      // Mitad del ancho, total del alto
   })
+}
+
+// Componente para escuchar clics en el mapa
+function MapClickHandler({
+  modoReporte,
+  setCoordenadasSeleccionadas
+}: {
+  modoReporte: boolean
+  setCoordenadasSeleccionadas: (coords: { lat: number; lng: number } | null) => void
+}) {
+  useMapEvents({
+    click(e) {
+      if (modoReporte) {
+        setCoordenadasSeleccionadas({ lat: e.latlng.lat, lng: e.latlng.lng })
+      }
+    }
+  })
+  return null
 }
 
 // Componente para escuchar clics en el mapa

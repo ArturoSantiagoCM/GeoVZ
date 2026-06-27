@@ -1,7 +1,6 @@
-
 'use client'
 
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, Map as MapIcon, List as ListIcon, PlusCircle, ShieldAlert, HeartHandshake } from 'lucide-react'
 import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Reporte } from '@/types'
@@ -10,7 +9,6 @@ import FiltrosTipo from '@/components/FiltrosTipo'
 import TarjetaReporte from '@/components/TarjetaReporte'
 import FormularioReporte from '@/components/FormularioReporte'
 import Image from 'next/image' 
-import { PlusCircle, List, ShieldAlert, HeartHandshake } from 'lucide-react'
 
 // Cargamos el mapa desactivando el SSR (Server-Side Rendering)
 const Mapa = dynamic(() => import('@/components/Mapa'), {
@@ -24,9 +22,14 @@ const Mapa = dynamic(() => import('@/components/Mapa'), {
   )
 })
 
+type MobileView = 'mapa' | 'lista' | 'reportar'
+
 export default function Page() {
   const [reportes, setReportes] = useState<Reporte[]>([])
   const [cargando, setCargando] = useState(true)
+
+  // Control de vista activa exclusivo para móviles
+  const [vistaMobile, setVistaMobile] = useState<MobileView>('mapa')
 
   // Estados de Filtros
   const [filtroTipo, setFiltroTipo] = useState('')
@@ -37,6 +40,17 @@ export default function Page() {
   const [reporteSeleccionado, setReporteSeleccionado] = useState<Reporte | null>(null)
   const [modoReporte, setModoReporte] = useState(false)
   const [coordenadasSeleccionadas, setCoordenadasSeleccionadas] = useState<{ lat: number; lng: number } | null>(null)
+
+  // Sincronizar el modoReporte tradicional con la navegación móvil
+  const cambiarVistaMobile = (vista: MobileView) => {
+    setVistaMobile(vista)
+    if (vista === 'reportar') {
+      setModoReporte(true)
+    } else {
+      setModoReporte(false)
+      setCoordenadasSeleccionadas(null)
+    }
+  }
 
   // Cargar reportes iniciales y configurar canal en tiempo real
   useEffect(() => {
@@ -113,7 +127,6 @@ export default function Page() {
       total: reportes.length,
       MaquiRescate: reportes.filter((r) => r.tipo_necesidad === 'Maquinaria de Rescate').length,
       EquiRescate: reportes.filter((r) => r.tipo_necesidad === 'Equipo de Rescate').length,
-      salud: reportes.filter((r) => r.tipo_necesidad === 'Medicamentos' || r.tipo_necesidad === 'Equipo Médico').length
     }
   }, [reportes])
 
@@ -129,41 +142,41 @@ export default function Page() {
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-slate-100 font-sans">
-      {/* Cabecera / Navbar */}
-      <header className="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 sm:px-6 shrink-0 shadow-md z-10">
+    <div className="flex flex-col h-screen overflow-hidden bg-slate-100 font-sans pb-16 md:pb-0">
+      {/* Cabecera / Navbar - Compacta para celulares */}
+      <header className="h-14 sm:h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 sm:px-6 shrink-0 shadow-md z-20">
         <div className="flex items-center gap-3">
           <Image 
             src="/venezuela.png" 
             alt="Mapa de Venezuela"
-            width={32} 
-            height={32}
-            className="object-contain shrink-0"
+            width={28} 
+            height={28}
+            className="object-contain shrink-0 sm:w-[32px] sm:h-[32px]"
             priority
           />
           <div className="min-w-0">
-            <h1 className="text-base sm:text-lg font-black tracking-tight text-white flex items-center gap-1.5 truncate">
-              GeoVZ <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">Venezuela</span>
+            <h1 className="text-sm sm:text-lg font-black tracking-tight text-white flex items-center gap-1.5 truncate">
+              GeoVZ <span className="text-[9px] sm:text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">Venezuela</span>
             </h1>
-            <p className="text-[9px] sm:text-[10px] text-slate-400 truncate">Monitoreo de Crisis en Tiempo Real</p>
+            <p className="text-[9px] sm:text-[10px] text-slate-400 truncate">Plataforma Ciudadana de Monitoreo</p>
           </div>
         </div>
 
-        {/* Stats de Cabecera - Ocultos en pantallas muy pequeñas, visibles desde sm */}
-        <div className="hidden sm:flex items-center gap-4 md:gap-6">
+        {/* Stats - Escondidos en móvil para no amontonar la pantalla */}
+        <div className="hidden md:flex items-center gap-6">
           <div className="text-right">
-            <span className="text-[9px] md:text-[10px] text-slate-400 uppercase block font-bold tracking-wider">Reportes Totales</span>
-            <span className="text-xs md:text-sm font-bold text-white">{estadisticas.total}</span>
+            <span className="text-[10px] text-slate-400 uppercase block font-bold tracking-wider">Reportes Totales</span>
+            <span className="text-sm font-bold text-white">{estadisticas.total}</span>
           </div>
           <div className="h-8 w-px bg-slate-800" />
           <div className="text-right">
-            <span className="text-[9px] md:text-[10px] text-slate-400 uppercase block font-bold tracking-wider">Maquinaria</span>
-            <span className="text-xs md:text-sm font-bold text-blue-400">{estadisticas.MaquiRescate}</span>
+            <span className="text-[10px] text-slate-400 uppercase block font-bold tracking-wider">Falta de Maquinaria</span>
+            <span className="text-sm font-bold text-blue-400">{estadisticas.MaquiRescate}</span>
           </div>
           <div className="h-8 w-px bg-slate-800" />
           <div className="text-right">
-            <span className="text-[9px] md:text-[10px] text-slate-400 uppercase block font-bold tracking-wider">Rescatistas</span>
-            <span className="text-xs md:text-sm font-bold text-orange-400">{estadisticas.EquiRescate}</span>
+            <span className="text-[10px] text-slate-400 uppercase block font-bold tracking-wider">Falta de Rescatista</span>
+            <span className="text-sm font-bold text-orange-400">{estadisticas.EquiRescate}</span>
           </div>
         </div>
       </header>
@@ -171,12 +184,16 @@ export default function Page() {
       {/* Contenedor Principal Split (Sidebar + Mapa) */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
         
-        {/* Barra Lateral (Sidebar) */}
-        <aside className="w-full md:w-[380px] lg:w-[420px] bg-white border-b md:border-b-0 md:border-r border-slate-200 flex flex-col h-[45%] md:h-full shrink-0 overflow-hidden shadow-sm z-10">
-          {/* Header del Sidebar */}
-          <div className="p-3 sm:p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between shrink-0">
-            <h2 className="text-xs sm:text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-              {modoReporte ? <ShieldAlert size={16} className="text-blue-500" /> : <List size={16} />}
+        {/* Barra Lateral / Sidebar (Lista y Formulario) */}
+        <aside className={`
+          w-full md:w-[380px] lg:w-[420px] bg-white border-r border-slate-200 flex flex-col shrink-0 overflow-hidden shadow-sm z-10
+          ${vistaMobile === 'mapa' ? 'hidden md:flex' : 'flex'} 
+          ${vistaMobile === 'lista' || vistaMobile === 'reportar' ? 'h-full' : 'h-0 md:h-full'}
+        `}>
+          {/* Header del Sidebar - Oculto en móvil ya que usamos las pestañas inferiores */}
+          <div className="hidden md:flex p-4 border-b border-slate-100 bg-slate-50/50 items-center justify-between">
+            <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+              {modoReporte ? <ShieldAlert size={16} className="text-blue-500" /> : <ListIcon size={16} />}
               {modoReporte ? 'Crear Afectación' : 'Reportes Recientes'}
             </h2>
             
@@ -185,67 +202,52 @@ export default function Page() {
                 setModoReporte(!modoReporte)
                 setCoordenadasSeleccionadas(null)
               }}
-              className={`flex items-center gap-1.5 text-[11px] sm:text-xs font-bold px-2.5 py-1.5 rounded-lg transition-all ${
-                modoReporte
-                  ? 'bg-slate-200 hover:bg-slate-300 text-slate-700'
-                  : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
+              className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all ${
+                modoReporte ? 'bg-slate-200 text-slate-700' : 'bg-blue-600 text-white shadow-sm'
               }`}
             >
-              {modoReporte ? (
-                <>
-                  <List size={14} />
-                  Ver Reportes
-                </>
-              ) : (
-                <>
-                  <PlusCircle size={14} />
-                  Reportar Incidente
-                </>
-              )}
+              {modoReporte ? 'Ver Reportes' : 'Reportar Incidente'}
             </button>
           </div>
 
-          {/* Contenido Dinámico del Sidebar */}
-          <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4">
+          {/* Contenido Dinámico con Scroll independiente */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 md:pb-4">
             {modoReporte ? (
               <FormularioReporte
                 coordenadasSeleccionadas={coordenadasSeleccionadas}
                 setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
                 onCancel={() => {
-                  setModoReporte(false)
-                  setCoordenadasSeleccionadas(null)
+                  cambiarVistaMobile('lista')
                 }}
                 onSuccess={() => {
-                  setModoReporte(false)
-                  setCoordenadasSeleccionadas(null)
+                  cambiarVistaMobile('mapa')
                 }}
               />
             ) : (
               <>
-                {/* Botones de Enlaces Externos de Ayuda */}
-                <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-2">
+                {/* Enlaces Rápidos de Emergencia */}
+                <div className="grid grid-cols-2 gap-3 mb-2">
                   <a
                     href="https://redatudavenezuela.com"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-between p-2.5 sm:p-3 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl text-[11px] sm:text-xs font-bold text-red-700 transition shadow-sm group"
+                    className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-xl text-[11px] font-bold text-red-700 transition"
                   >
-                    <span className="truncate">Red Ayuda VZLA</span>
-                    <ExternalLink size={12} className="text-red-400 group-hover:text-red-600 transition-colors shrink-0 ml-1" />
+                    <span className="truncate">Red Ayuda</span>
+                    <ExternalLink size={12} className="text-red-400 shrink-0 ml-1" />
                   </a>
 
                   <a
                     href="https://hospitalesenvenezuela.com"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-between p-2.5 sm:p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-[11px] sm:text-xs font-bold text-blue-700 transition shadow-sm group"
+                    className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-xl text-[11px] font-bold text-blue-700 transition"
                   >
-                    <span className="truncate">Hospitales VZLA</span>
-                    <ExternalLink size={12} className="text-blue-400 group-hover:text-blue-600 transition-colors shrink-0 ml-1" />
+                    <span className="truncate">Hospitales</span>
+                    <ExternalLink size={12} className="text-blue-400 shrink-0 ml-1" />
                   </a>
                 </div>
 
-                {/* Filtros */}
                 <FiltrosTipo
                   filtroTipo={filtroTipo}
                   setFiltroTipo={setFiltroTipo}
@@ -255,9 +257,8 @@ export default function Page() {
                   setBusqueda={setBusqueda}
                 />
 
-                {/* Lista de Tarjetas */}
                 <div className="space-y-3">
-                  <div className="flex justify-between items-center text-[11px] sm:text-xs font-medium text-slate-500 px-1">
+                  <div className="flex justify-between items-center text-xs font-medium text-slate-500 px-1">
                     <span>Resultados de búsqueda</span>
                     <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full">
                       {reportesFiltrados.length}
@@ -270,15 +271,21 @@ export default function Page() {
                         key={reporte.id}
                         reporte={reporte}
                         estaSeleccionado={reporteSeleccionado?.id === reporte.id}
-                        onSelect={(rep) => setReporteSeleccionado(rep)}
+                        onSelect={(rep) => {
+                          setReporteSeleccionado(rep)
+                          // Al tocar un reporte en el móvil, nos lleva automáticamente al mapa
+                          if (window.innerWidth < 768) {
+                            setVistaMobile('mapa')
+                          }
+                        }}
                       />
                     ))
                   ) : (
-                    <div className="text-center py-6 sm:py-10 px-4 border border-dashed border-slate-200 rounded-xl bg-slate-50 space-y-2">
-                      <HeartHandshake className="mx-auto text-slate-300" size={28} />
-                      <h4 className="text-xs sm:text-sm font-bold text-slate-700">Sin reportes registrados</h4>
-                      <p className="text-[11px] text-slate-500 leading-normal max-w-[240px] mx-auto">
-                        No hay reportes activos que coincidan con estos filtros. Cambia tus términos de búsqueda o reporta uno nuevo.
+                    <div className="text-center py-10 px-4 border border-dashed border-slate-200 rounded-xl bg-slate-50 space-y-2">
+                      <HeartHandshake className="mx-auto text-slate-300" size={32} />
+                      <h4 className="text-sm font-bold text-slate-700">Sin reportes registrados</h4>
+                      <p className="text-xs text-slate-500">
+                        No hay reportes que coincidan con los filtros aplicados.
                       </p>
                     </div>
                   )}
@@ -288,14 +295,16 @@ export default function Page() {
           </div>
         </aside>
 
-        {/* Panel del Mapa */}
-        <main className="flex-1 h-[55%] md:h-full bg-slate-50 relative">
-          {/* Aviso Flotante si está en Modo Reporte */}
+        {/* Panel del Mapa - Toma pantalla completa en móvil si está activo */}
+        <main className={`
+          flex-1 bg-slate-50 relative h-full
+          ${vistaMobile === 'mapa' ? 'block' : 'hidden md:block'}
+        `}>
           {modoReporte && !coordenadasSeleccionadas && (
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[400] w-[92%] max-w-sm bg-blue-600 text-white px-3 py-2 rounded-xl shadow-lg border border-blue-500/30 flex items-center gap-2 animate-bounce">
-              <span className="text-sm shrink-0">📍</span>
-              <p className="text-[11px] font-bold leading-tight text-left">
-                Haz clic en el mapa para fijar el punto del incidente y rellenar el formulario.
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[400] w-[90%] max-w-sm bg-blue-600 text-white px-4 py-3 rounded-xl shadow-lg border border-blue-500/30 flex items-center gap-2 animate-bounce">
+              <span className="text-base shrink-0">📍</span>
+              <p className="text-xs font-bold leading-tight text-left">
+                Toca el mapa en el punto exacto del incidente para marcarlo.
               </p>
             </div>
           )}
@@ -310,6 +319,39 @@ export default function Page() {
           />
         </main>
       </div>
+
+      {/* BARRA DE NAVEGACIÓN INFERIOR (BOTTOM NAVIGATION) - Exclusiva para Celulares */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 flex items-center justify-around px-2 z-[500] shadow-xl">
+        <button
+          onClick={() => cambiarVistaMobile('mapa')}
+          className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-colors ${
+            vistaMobile === 'mapa' ? 'text-blue-600 font-bold' : 'text-slate-500'
+          }`}
+        >
+          <MapIcon size={20} className={vistaMobile === 'mapa' ? 'stroke-[2.5]' : 'stroke-[1.8]'} />
+          <span className="text-[10px] tracking-tight">Ver Mapa</span>
+        </button>
+
+        <button
+          onClick={() => cambiarVistaMobile('lista')}
+          className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-colors ${
+            vistaMobile === 'lista' ? 'text-blue-600 font-bold' : 'text-slate-500'
+          }`}
+        >
+          <ListIcon size={20} className={vistaMobile === 'lista' ? 'stroke-[2.5]' : 'stroke-[1.8]'} />
+          <span className="text-[10px] tracking-tight">Ver Lista</span>
+        </button>
+
+        <button
+          onClick={() => cambiarVistaMobile('reportar')}
+          className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-colors ${
+            vistaMobile === 'reportar' ? 'text-red-600 font-bold' : 'text-slate-500'
+          }`}
+        >
+          <PlusCircle size={20} className={vistaMobile === 'reportar' ? 'stroke-[2.5] text-red-600' : 'stroke-[1.8]'} />
+          <span className="text-[10px] tracking-tight">Nuevo Reporte</span>
+        </button>
+      </nav>
     </div>
   )
 }

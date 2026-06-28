@@ -1,6 +1,6 @@
 'use client'
-import { useRef, useState } from 'react'
-import { MapPin, Calendar, Map, Loader2, Check } from 'lucide-react'
+import { useState } from 'react'
+import { MapPin, Calendar, ChevronDown, ChevronUp, Pencil, Check, X, Loader2 } from 'lucide-react'
 import { Reporte } from '@/types'
 import { supabase } from '@/lib/supabase'
 
@@ -22,10 +22,13 @@ interface TarjetaReporteProps {
 export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado }: TarjetaReporteProps) {
   const cfg = CONFIG_INFRA[reporte.categoria_infraestructura] ?? DEFAULT_CONFIG
 
-  const [texto, setTexto]         = useState(reporte.descripcion || '')
-  const [guardando, setGuardando] = useState(false)
-  const [guardado, setGuardado]   = useState(false)
-  const [error, setError]         = useState('')
+  const [expandido, setExpandido]       = useState(false)
+  const [editando, setEditando]         = useState(false)
+  // descripcionGuardada: fuente de verdad local (se actualiza al guardar con éxito)
+  const [descripcionGuardada, setDescripcionGuardada] = useState(reporte.descripcion || '')
+  const [textoEdicion, setTextoEdicion] = useState(reporte.descripcion || '')
+  const [guardando, setGuardando]       = useState(false)
+  const [errorGuardar, setErrorGuardar] = useState<string | null>(null)
 
   const formatearFecha = (f: string) => {
     try {
@@ -35,26 +38,48 @@ export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado }: 
     } catch { return f }
   }
 
-  const guardar = async () => {
+  const guardarDescripcion = async (e: React.MouseEvent) => {
+    e.stopPropagation()
     setGuardando(true)
-    setError('')
-    setGuardado(false)
-    const { error: err } = await supabase
-      .from('reportes')
-      .update({ descripcion: texto })
-      .eq('id', reporte.id)
-    if (err) {
-      setError('Error al guardar. Intenta de nuevo.')
-    } else {
-      reporte.descripcion = texto
-      setGuardado(true)
-      setTimeout(() => setGuardado(false), 2000)
+    setErrorGuardar(null)
+    try {
+      const { error } = await supabase
+        .from('reportes')
+        .update({ descripcion: textoEdicion })
+        .eq('id', reporte.id)
+      if (error) throw error
+      // Actualizar estado local — el realtime en page.tsx también lo propagará
+      setDescripcionGuardada(textoEdicion)
+      setEditando(false)
+    } catch (err: unknown) {
+      setErrorGuardar(err instanceof Error ? err.message : 'Error al guardar')
+    } finally {
+      setGuardando(false)
     }
-    setGuardando(false)
+  }
+
+  const cancelarEdicion = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setTextoEdicion(descripcionGuardada) // volver al último guardado
+    setEditando(false)
+    setErrorGuardar(null)
+  }
+
+  const toggleExpandir = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setExpandido(prev => !prev)
+  }
+
+  const iniciarEdicion = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setTextoEdicion(descripcionGuardada)
+    setExpandido(true)
+    setEditando(true)
   }
 
   return (
     <div
+      onClick={() => onSelect(reporte)}
       style={{
         borderColor: estaSeleccionado ? cfg.color : undefined,
         boxShadow: estaSeleccionado ? `0 0 0 2px ${cfg.color}22` : undefined,
@@ -64,7 +89,6 @@ export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado }: 
         ${estaSeleccionado ? 'shadow-md' : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'}
       `}
     >
-      {/* Barra lateral de color */}
       <div className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-2xl" style={{ backgroundColor: cfg.color }} />
 
       <div className="ml-1.5 px-3 py-3 space-y-2">
@@ -105,53 +129,74 @@ export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado }: 
           )}
         </div>
 
-        {/* Descripción + botão OK */}
-        <div
-          className="rounded-xl border p-3 space-y-2"
-          style={{ backgroundColor: cfg.bg, borderColor: cfg.border }}
-          onClick={e => e.stopPropagation()}
-        >
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Necesidades</p>
-            {guardando && <Loader2 size={10} className="text-slate-400 animate-spin" />}
-            {!guardando && guardado && <span className="text-[9px] text-green-500 font-bold">✓ Guardado</span>}
-            {!guardando && error && <span className="text-[9px] text-red-500 font-bold">{error}</span>}
-          </div>
-
-          <textarea
-            value={texto}
-            onChange={e => setTexto(e.target.value)}
-            rows={4}
-            className="w-full text-xs text-slate-700 bg-white border border-slate-200 rounded-lg px-2.5 py-2
-                       focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-400
-                       resize-none leading-relaxed transition"
-            placeholder="Lista de necesidades..."
-          />
-
-          {/* Botão OK — só aparece se o texto mudou */}
-          {texto !== (reporte.descripcion || '') && !guardando && (
-            <button
-              onClick={guardar}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold
-                         text-white transition active:scale-95"
-              style={{ backgroundColor: cfg.color }}
-            >
-              <Check size={11} />
-              OK — Guardar
-            </button>
-          )}
-        </div>
-
-        {/* Botão Ver en mapa */}
+        {/* Botón expandir */}
         <button
-          onClick={() => onSelect(reporte)}
-          className="w-full flex items-center justify-center gap-1.5 text-xs font-bold py-2 rounded-xl transition"
-          style={{ backgroundColor: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}
+          onClick={toggleExpandir}
+          className="w-full flex items-center justify-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-blue-600 transition-colors py-1 rounded-lg hover:bg-blue-50"
         >
-          <Map size={12} />
-          Ver en mapa
+          {expandido
+            ? <><ChevronUp size={12} /> Ocultar necesidades</>
+            : <><ChevronDown size={12} /> Ver necesidades</>
+          }
         </button>
 
+        {/* Panel expandido */}
+        {expandido && (
+          <div
+            className="rounded-xl border p-3 space-y-2"
+            style={{ backgroundColor: cfg.bg, borderColor: cfg.border }}
+            onClick={e => e.stopPropagation()}
+          >
+            {editando ? (
+              <>
+                <textarea
+                  value={textoEdicion}
+                  onChange={e => setTextoEdicion(e.target.value)}
+                  rows={5}
+                  autoFocus
+                  className="w-full text-xs text-slate-700 bg-white border border-blue-300 rounded-lg px-2.5 py-2
+                             focus:outline-none focus:ring-2 focus:ring-blue-400/30 resize-none leading-relaxed"
+                  placeholder="Lista de necesidades..."
+                />
+                {errorGuardar && (
+                  <p className="text-[10px] text-red-500 font-medium">{errorGuardar}</p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={cancelarEdicion}
+                    className="flex-1 flex items-center justify-center gap-1 text-[11px] font-bold border border-slate-200 hover:bg-white text-slate-600 py-1.5 rounded-lg transition"
+                  >
+                    <X size={11} /> Cancelar
+                  </button>
+                  <button
+                    onClick={guardarDescripcion}
+                    disabled={guardando}
+                    className="flex-1 flex items-center justify-center gap-1 text-[11px] font-bold text-white py-1.5 rounded-lg transition disabled:opacity-60"
+                    style={{ backgroundColor: cfg.color }}
+                  >
+                    {guardando ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+                    {guardando ? 'Guardando...' : 'OK — Guardar'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-xs text-slate-700 leading-relaxed whitespace-pre-line min-h-[36px]">
+                  {descripcionGuardada
+                    ? descripcionGuardada
+                    : <span className="text-slate-400 italic">Sin descripción aún.</span>
+                  }
+                </div>
+                <button
+                  onClick={iniciarEdicion}
+                  className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 hover:text-blue-600 transition py-1 px-2 rounded-lg hover:bg-white"
+                >
+                  <Pencil size={10} /> Editar lista
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

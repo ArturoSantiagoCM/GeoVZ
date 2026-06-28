@@ -1,6 +1,6 @@
 'use client'
 
-import { ExternalLink, Map as MapIcon, List as ListIcon, PlusCircle, HeartHandshake } from 'lucide-react'
+import { ExternalLink, Map as MapIcon, List as ListIcon, Plus, HeartHandshake } from 'lucide-react'
 import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Reporte } from '@/types'
@@ -10,11 +10,10 @@ import TarjetaReporte from '@/components/TarjetaReporte'
 import FormularioReporte from '@/components/FormularioReporte'
 import Image from 'next/image' 
 
-// Desativação completa de SSR para Leaflet para garantir sucesso no build do Vercel
 const Mapa = dynamic(() => import('@/components/Mapa'), {
   ssr: false,
   loading: () => (
-    <div className="flex h-full w-full items-center justify-center bg-slate-50 border border-dashed border-slate-300">
+    <div className="flex h-full w-full items-center justify-center bg-slate-50 border border-dashed border-slate-200">
       <p className="text-sm font-medium text-slate-400 animate-pulse">
         A carregar mapa de emergências...
       </p>
@@ -29,12 +28,10 @@ export default function Page() {
   const [cargando, setCargando] = useState(true)
   const [vistaMobile, setVistaMobile] = useState<MobileView>('lista')
 
-  // Estados de Filtros
   const [filtroTipo, setFiltroTipo] = useState('')
   const [filtroInfraestructura, setFiltroInfraestructura] = useState('')
   const [busqueda, setBusqueda] = useState('')
 
-  // Estados de Interação do Mapa
   const [reporteSeleccionado, setReporteSeleccionado] = useState<Reporte | null>(null)
   const [modoReporte, setModoReporte] = useState(false)
   const [coordenadasSeleccionadas, setCoordenadasSeleccionadas] = useState<{ lat: number; lng: number } | null>(null)
@@ -49,7 +46,6 @@ export default function Page() {
     }
   }
 
-  // Carregar dados iniciais e tempo real via Supabase
   useEffect(() => {
     const obtenerReportesIniciales = async () => {
       try {
@@ -58,14 +54,11 @@ export default function Page() {
           .select('*')
           .order('creado_en', { ascending: false })
 
-        if (error) {
-          console.error('Erro ao procurar registos:', error)
-        } else if (data) {
-          setReportes(data as Reporte[])
-        }
+        if (error) console.error('Erro ao procurar registos:', error)
+        else if (data) setReportes(data as Reporte[])
       } catch (err) {
         console.error('Erro crítico de rede:', err)
-      } finally {
+      } finaly {
         setCargando(false)
       }
     }
@@ -89,7 +82,6 @@ export default function Page() {
     }
   }, [])
 
-  // Agrupa pontos geográficos iguais evitando sobreposições e garantindo tipagem TypeScript correta
   const reportesAgrupadosParaMapa = useMemo(() => {
     if (!reportes || reportes.length === 0) return []
     const mapaAgrupado: { [key: string]: Reporte } = {}
@@ -97,8 +89,6 @@ export default function Page() {
     reportes.forEach((reporte) => {
       const latNum = Number(reporte.latitud)
       const lngNum = Number(reporte.longitud)
-      
-      // Proteção contra coordenadas corrompidas (Evita bug do Invalid LatLng NaN)
       if (isNaN(latNum) || isNaN(lngNum) || !reporte.latitud || !reporte.longitud) return
       
       const llaveCoordenada = `${latNum.toFixed(5)}_${lngNum.toFixed(5)}`
@@ -107,7 +97,6 @@ export default function Page() {
         mapaAgrupado[llaveCoordenada] = {
           ...mapaAgrupado[llaveCoordenada],
           descripcion: `${mapaAgrupado[llaveCoordenada].descripcion}\n\n⚠️ OUTRA NECESSIDADE AQUI:\n${reporte.descripcion || 'Sem descrição'}`,
-          // Usamos a string exata compatível definida no teu index.ts
           tipo_necesidad: 'Múltiples Necesidades' 
         }
       } else {
@@ -122,7 +111,6 @@ export default function Page() {
     return Object.values(mapaAgrupado)
   }, [reportes])
 
-  // Filtros da barra lateral e pesquisa
   const reportesFiltrados = useMemo(() => {
     if (!reportes) return []
     return reportes.filter((reporte) => {
@@ -160,9 +148,9 @@ export default function Page() {
 
   if (cargando) {
     return (
-      <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-50 gap-4">
+      <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-900 gap-4">
         <LoaderComponent />
-        <p className="text-sm font-semibold text-slate-600 animate-pulse px-4 text-center">
+        <p className="text-sm font-medium text-slate-400 animate-pulse px-4 text-center">
           A ligar à Rede de Emergência GeoVZ...
         </p>
       </div>
@@ -170,23 +158,23 @@ export default function Page() {
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-slate-100 font-sans pb-16 md:pb-0">
+    <div className="flex flex-col h-screen overflow-hidden bg-slate-50 font-sans antialiased">
       {/* Navbar Superior */}
-      <header className="h-14 sm:h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 sm:px-6 shrink-0 shadow-md z-20">
-        <div className="flex items-center gap-3">
+      <header className="h-14 sm:h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 sm:px-6 shrink-0 shadow-sm z-30">
+        <div className="flex items-center gap-2.5">
           <Image 
             src="/venezuela.png" 
             alt="Mapa de Venezuela"
             width={28} 
             height={28}
-            className="object-contain shrink-0 sm:w-[32px] sm:h-[32px]"
+            className="object-contain shrink-0"
             priority
           />
           <div className="min-w-0">
-            <h1 className="text-sm sm:text-lg font-black tracking-tight text-white flex items-center gap-1.5 truncate">
-              GeoVZ <span className="text-[9px] sm:text-xs px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">Venezuela</span>
+            <h1 className="text-base font-bold tracking-tight text-white flex items-center gap-1.5">
+              GeoVZ <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-medium">Venezuela</span>
             </h1>
-            <p className="text-[9px] sm:text-[10px] text-slate-400 truncate">Plataforma Cidadã de Monitorização</p>
+            <p className="text-[10px] text-slate-400 truncate">Plataforma Cidadã de Monitorização</p>
           </div>
         </div>
       </header>
@@ -194,29 +182,31 @@ export default function Page() {
       {/* Área Split de Conteúdo */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
         
-        {/* Painel Lateral / Lista UI Otimizada */}
+        {/* Painel Lateral */}
         <aside className={`
-          w-full md:w-[380px] lg:w-[420px] bg-white border-r border-slate-200 flex flex-col shrink-0 overflow-hidden shadow-sm z-10
+          w-full md:w-[390px] lg:w-[430px] bg-white border-r border-slate-200 flex flex-col shrink-0 overflow-hidden z-20
           ${vistaMobile === 'mapa' ? 'hidden md:flex' : 'flex'} 
           ${vistaMobile === 'lista' || vistaMobile === 'reportar' ? 'h-full' : 'h-0 md:h-full'}
         `}>
           
-          <div className="flex-1 overflow-y-auto p-4 space-y-5 pb-24 md:pb-6">
+          <div className="flex-1 overflow-y-auto overscroll-y-contain p-4 space-y-5 pb-24 md:pb-6">
             {modoReporte ? (
-              <FormularioReporte
-                coordenadasSeleccionadas={coordenadasSeleccionadas}
-                setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
-                onCancel={() => cambiarVistaMobile('lista')}
-                onSuccess={() => cambiarVistaMobile('mapa')}
-              />
+              <div className="animate-in fade-in duration-200">
+                <FormularioReporte
+                  coordenadasSeleccionadas={coordenadasSeleccionadas}
+                  setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
+                  onCancel={() => cambiarVistaMobile('lista')}
+                  onSuccess={() => cambiarVistaMobile('mapa')}
+                />
+              </div>
             ) : (
               <>
-                {/* Título de Destaque Mobile/Desktop */}
-                <div className="py-2 border-b border-slate-100">
-                  <h2 className="text-4xl sm:text-5xl font-black text-slate-950 tracking-tighter leading-none block">
-                    ¿DONDE PUEDO DONAR?
+                {/* Título Adaptado */}
+                <div className="pb-1">
+                  <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                    ¿Dónde puedo donar?
                   </h2>
-                  <p className="text-xs font-semibold text-slate-500 mt-2">
+                  <p className="text-xs text-slate-500 mt-1">
                     Consulta as necessidades críticas em tempo real.
                   </p>
                 </div>
@@ -232,52 +222,54 @@ export default function Page() {
 
                 {/* Lista de Registos */}
                 <div className="space-y-3">
-                  <div className="flex justify-between items-center text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
+                  <div className="flex justify-between items-center text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1">
                     <span>Casos Registados</span>
-                    <span className="text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-full text-xs">
+                    <span className="text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full text-xs font-semibold">
                       {reportesFiltrados.length}
                     </span>
                   </div>
 
-                  {reportesFiltrados.length > 0 ? (
-                    reportesFiltrados.map((reporte) => (
-                      <TarjetaReporte
-                        key={reporte.id}
-                        reporte={reporte}
-                        estaSeleccionado={reporteSeleccionado?.id === reporte.id}
-                        onSelect={manejarSeleccionTarjeta}
-                      />
-                    ))
-                  ) : (
-                    <div className="text-center py-10 px-4 border border-dashed border-slate-200 rounded-xl bg-slate-50 space-y-2">
-                      <HeartHandshake className="mx-auto text-slate-300" size={32} />
-                      <h4 className="text-sm font-bold text-slate-700">Sem registos ativos</h4>
-                    </div>
-                  )}
+                  <div className="space-y-2.5">
+                    {reportesFiltrados.length > 0 ? (
+                      reportesFiltrados.map((reporte) => (
+                        <TarjetaReporte
+                          key={reporte.id}
+                          reporte={reporte}
+                          estaSeleccionado={reporteSeleccionado?.id === reporte.id}
+                          onSelect={manejarSeleccionTarjeta}
+                        />
+                      ))
+                    ) : (
+                      <div className="text-center py-12 px-4 border border-dashed border-slate-200 rounded-2xl bg-slate-50/50 space-y-2">
+                        <HeartHandshake className="mx-auto text-slate-300" size={28} />
+                        <h4 className="text-sm font-medium text-slate-500">Sem registos ativos</h4>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {/* Links de Emergência Rápidos */}
-                <div className="pt-4 border-t border-slate-100 space-y-2">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">Links Úteis de Ajuda</p>
+                {/* Links de Emergência */}
+                <div className="pt-4 border-t border-slate-100 space-y-2.5">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1">Links Úteis de Ajuda</p>
                   <div className="grid grid-cols-2 gap-3">
                     <a
                       href="https://redatudavenezuela.com"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-between p-3 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl text-[11px] font-bold text-red-700 transition shadow-sm"
+                      className="flex items-center justify-between p-3 bg-red-50/60 hover:bg-red-100/80 border border-red-100 rounded-xl text-xs font-semibold text-red-700 transition"
                     >
                       <span className="truncate">Red Ayuda</span>
-                      <ExternalLink size={12} className="text-red-400 shrink-0 ml-1" />
+                      <ExternalLink size={14} className="text-red-400 shrink-0 ml-1" />
                     </a>
 
                     <a
                       href="https://hospitalesenvenezuela.com"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-between p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-[11px] font-bold text-blue-700 transition shadow-sm"
+                      className="flex items-center justify-between p-3 bg-blue-50/60 hover:bg-blue-100/80 border border-blue-100 rounded-xl text-xs font-semibold text-blue-700 transition"
                     >
                       <span className="truncate">Hospitales</span>
-                      <ExternalLink size={12} className="text-blue-400 shrink-0 ml-1" />
+                      <ExternalLink size={14} className="text-blue-400 shrink-0 ml-1" />
                     </a>
                   </div>
                 </div>
@@ -288,13 +280,13 @@ export default function Page() {
 
         {/* Ecrã de Exibição do Mapa */}
         <main className={`
-          flex-1 bg-slate-50 relative h-full
+          flex-1 bg-slate-100 relative h-full z-10
           ${vistaMobile === 'mapa' ? 'block' : 'hidden md:block'}
         `}>
           {modoReporte && !coordenadasSeleccionadas && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[400] w-[90%] max-w-sm bg-blue-600 text-white px-4 py-3 rounded-xl shadow-lg border border-blue-500/30 flex items-center gap-2 animate-bounce">
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[400] w-[92%] max-w-xs bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl border border-slate-800 flex items-center gap-2.5 animate-in fade-in slide-in-from-top-2 duration-300">
               <span className="text-base shrink-0">📍</span>
-              <p className="text-xs font-bold leading-tight text-left">
+              <p className="text-xs font-medium leading-tight text-left text-slate-200">
                 Toca no mapa no ponto exato para fixar o local.
               </p>
             </div>
@@ -311,36 +303,40 @@ export default function Page() {
         </main>
       </div>
 
-      {/* Menu Inferior Fixo Otimizado para Telemóveis (Mobile App UX) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 flex items-center justify-around px-2 z-[500] shadow-xl">
+      {/* Menu Inferior Estilo App Mobile Nativo */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/95 backdrop-blur-md border-t border-slate-200 flex items-center justify-between px-6 z-[500] shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
         <button
           onClick={() => cambiarVistaMobile('lista')}
-          className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-colors ${
-            vistaMobile === 'lista' ? 'text-blue-600 font-bold' : 'text-slate-500'
+          className={`flex flex-col items-center justify-center w-20 h-full gap-1.5 transition-all ${
+            vistaMobile === 'lista' ? 'text-blue-600 font-semibold' : 'text-slate-400 hover:text-slate-600'
           }`}
         >
-          <ListIcon size={20} className={vistaMobile === 'lista' ? 'stroke-[2.5]' : 'stroke-[1.8]'} />
-          <span className="text-[10px] tracking-tight">Ver Lista</span>
+          <ListIcon size={20} className={vistaMobile === 'lista' ? 'stroke-[2.2]' : 'stroke-[1.8]'} />
+          <span className="text-[10px] tracking-wide font-medium">Ver Lista</span>
         </button>
+
+        {/* Floating Action Button Centrado para o Novo Registro */}
+        <div className="relative -top-4">
+          <button
+            onClick={() => cambiarVistaMobile('reportar')}
+            className={`flex items-center justify-center w-14 h-14 rounded-full shadow-lg transition-transform active:scale-95 ${
+              vistaMobile === 'reportar' 
+                ? 'bg-red-600 text-white ring-4 ring-red-100' 
+                : 'bg-blue-600 text-white ring-4 ring-blue-100 shadow-blue-500/20'
+            }`}
+          >
+            <Plus size={28} className={`transition-transform duration-200 ${vistaMobile === 'reportar' ? 'rotate-45' : ''}`} />
+          </button>
+        </div>
 
         <button
           onClick={() => cambiarVistaMobile('mapa')}
-          className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-colors ${
-            vistaMobile === 'mapa' ? 'text-blue-600 font-bold' : 'text-slate-500'
+          className={`flex flex-col items-center justify-center w-20 h-full gap-1.5 transition-all ${
+            vistaMobile === 'mapa' ? 'text-blue-600 font-semibold' : 'text-slate-400 hover:text-slate-600'
           }`}
         >
-          <MapIcon size={20} className={vistaMobile === 'mapa' ? 'stroke-[2.5]' : 'stroke-[1.8]'} />
-          <span className="text-[10px] tracking-tight">Ver Mapa</span>
-        </button>
-
-        <button
-          onClick={() => cambiarVistaMobile('reportar')}
-          className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-colors ${
-            vistaMobile === 'reportar' ? 'text-red-600 font-bold' : 'text-slate-500'
-          }`}
-        >
-          <PlusCircle size={20} className={vistaMobile === 'reportar' ? 'stroke-[2.5] text-red-600' : 'stroke-[1.8]'} />
-          <span className="text-[10px] tracking-tight">Novo Registo</span>
+          <MapIcon size={20} className={vistaMobile === 'mapa' ? 'stroke-[2.2]' : 'stroke-[1.8]'} />
+          <span className="text-[10px] tracking-wide font-medium">Ver Mapa</span>
         </button>
       </nav>
     </div>
@@ -350,13 +346,13 @@ export default function Page() {
 function LoaderComponent() {
   return (
     <div className="relative flex items-center justify-center">
-      <div className="w-14 h-14 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+      <div className="w-12 h-12 border-3 border-blue-500/10 border-t-blue-500 rounded-full animate-spin"></div>
       <div className="absolute animate-pulse">
         <Image 
           src="/venezuela.png" 
           alt="A carregar..."
-          width={24} 
-          height={24}
+          width={22} 
+          height={22}
           className="object-contain"
         />
       </div>

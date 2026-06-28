@@ -50,28 +50,29 @@ export default function FormularioReporte({
   onSuccess,
   onCancel,
 }: FormularioReporteProps) {
-  const [enviando, setEnviando]           = useState(false)
-  const [errorEnvio, setErrorEnvio]       = useState<string | null>(null)
+  const [enviando, setEnviando]         = useState(false)
+  const [errorEnvio, setErrorEnvio]     = useState<string | null>(null)
 
-  // ── Autocompletado ──────────────────────────────────────────────
-  const [textoBusqueda, setTextoBusqueda]         = useState('')
-  const [sugerencias, setSugerencias]             = useState<Sugerencia[]>([])
-  const [buscando, setBuscando]                   = useState(false)
-  const [dropdownAbierto, setDropdownAbierto]     = useState(false)
-  const debounceRef                               = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const wrapperRef                                = useRef<HTMLDivElement>(null)
+  const [textoBusqueda, setTextoBusqueda]     = useState('')
+  const [sugerencias, setSugerencias]         = useState<Sugerencia[]>([])
+  const [buscando, setBuscando]               = useState(false)
+  const [dropdownAbierto, setDropdownAbierto] = useState(false)
+  const debounceRef                           = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const wrapperRef                            = useRef<HTMLDivElement>(null)
 
-  // ── Dirección resuelta ──────────────────────────────────────────
-  const [cargandoDireccion, setCargandoDireccion]   = useState(false)
-  const [direccionResuelta, setDireccionResuelta]   = useState<{
+  const [cargandoDireccion, setCargandoDireccion] = useState(false)
+  const [direccionResuelta, setDireccionResuelta] = useState<{
     direccion: string; estado: string; municipio: string
   } | null>(null)
+
+  // ← CLAVE: flag para saber si las coords vienen del dropdown (no geocodificar)
+  const coordsDesdeDropdown = useRef(false)
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<FormInputs>({
     resolver: zodResolver(schemaReporte),
   })
 
-  // ── Cerrar dropdown al hacer click fuera ────────────────────────
+  // Cerrar dropdown al hacer click fuera
   useEffect(() => {
     const handleClickFuera = (e: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
@@ -82,17 +83,11 @@ export default function FormularioReporte({
     return () => document.removeEventListener('mousedown', handleClickFuera)
   }, [])
 
-  // ── Debounce: buscar sugerencias mientras escribe ───────────────
+  // Debounce búsqueda
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
-
     const query = textoBusqueda.trim()
-
-    if (query.length < 3) {
-      setSugerencias([])
-      setDropdownAbierto(false)
-      return
-    }
+    if (query.length < 3) { setSugerencias([]); setDropdownAbierto(false); return }
 
     debounceRef.current = setTimeout(async () => {
       setBuscando(true)
@@ -109,39 +104,39 @@ export default function FormularioReporte({
       } finally {
         setBuscando(false)
       }
-    }, 400) // 400ms debounce
+    }, 400)
 
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-    }
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [textoBusqueda])
 
-  // ── Al seleccionar una sugerencia ───────────────────────────────
+  // Seleccionar sugerencia del dropdown
   const seleccionarSugerencia = (s: Sugerencia) => {
     const lat = parseFloat(s.lat)
     const lng = parseFloat(s.lon)
     const a = s.address
-
-    // Tomar solo la primera parte del display_name para el campo de texto
     const nombreCorto = s.display_name.split(',').slice(0, 3).join(',').trim()
-    setTextoBusqueda(nombreCorto)
 
+    setTextoBusqueda(nombreCorto)
+    coordsDesdeDropdown.current = true  // ← marcar: viene del dropdown
     setCoordenadasSeleccionadas({ lat, lng })
     setDireccionResuelta({
       direccion: s.display_name,
-      estado: a.state || a.region || '',
+      estado:    a.state || a.region || '',
       municipio: a.county || a.city || a.town || a.municipality || '',
     })
     setSugerencias([])
     setDropdownAbierto(false)
   }
 
-  // ── Geocodificación inversa al tocar el mapa ────────────────────
+  // Geocodificación inversa — solo cuando las coords vienen del MAPA (no del dropdown)
   useEffect(() => {
     if (!coordenadasSeleccionadas) { setDireccionResuelta(null); return }
 
-    // Si ya tenemos dirección (seleccionada del dropdown), no re-geocodificar
-    if (direccionResuelta) return
+    // Si las coords vinieron del dropdown, consumir el flag y no geocodificar
+    if (coordsDesdeDropdown.current) {
+      coordsDesdeDropdown.current = false
+      return
+    }
 
     const geocodificar = async () => {
       setCargandoDireccion(true)
@@ -158,7 +153,7 @@ export default function FormularioReporte({
           setTextoBusqueda(nombreCorto)
           setDireccionResuelta({
             direccion: data.display_name,
-            estado: a.state || a.region || '',
+            estado:    a.state || a.region || '',
             municipio: a.county || a.city || a.town || a.municipality || '',
           })
         } else {
@@ -177,19 +172,17 @@ export default function FormularioReporte({
       }
     }
     geocodificar()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coordenadasSeleccionadas])
 
-  // ── Limpiar ubicación ───────────────────────────────────────────
   const limpiarUbicacion = () => {
     setTextoBusqueda('')
     setSugerencias([])
     setDropdownAbierto(false)
     setDireccionResuelta(null)
+    coordsDesdeDropdown.current = false
     setCoordenadasSeleccionadas(null)
   }
 
-  // ── Envío del formulario ────────────────────────────────────────
   const onSubmit = async (data: FormInputs) => {
     if (!coordenadasSeleccionadas) {
       setErrorEnvio('Busca o selecciona una ubicación en el mapa primero.')
@@ -198,22 +191,23 @@ export default function FormularioReporte({
     setEnviando(true); setErrorEnvio(null)
     try {
       const { error } = await supabase.from('reportes').insert({
-        latitud:                  coordenadasSeleccionadas.lat,
-        longitud:                 coordenadasSeleccionadas.lng,
-        tipo_necesidad:           'Múltiples Necesidades',
+        latitud:                   coordenadasSeleccionadas.lat,
+        longitud:                  coordenadasSeleccionadas.lng,
+        tipo_necesidad:            'Múltiples Necesidades',
         categoria_infraestructura: data.categoria_infraestructura as CategoriaInfraestructura,
-        descripcion:              data.descripcion,
-        contacto:                 null,
-        direccion_texto:          direccionResuelta?.direccion || 'Ubicación seleccionada',
-        estado:                   direccionResuelta?.estado || null,
-        municipio:                direccionResuelta?.municipio || null,
-        atendido:                 false,
-        verificado:               false,
+        descripcion:               data.descripcion,
+        contacto:                  null,
+        direccion_texto:           direccionResuelta?.direccion || 'Ubicación seleccionada',
+        estado:                    direccionResuelta?.estado || null,
+        municipio:                 direccionResuelta?.municipio || null,
+        atendido:                  false,
+        verificado:                false,
       })
       if (error) throw error
       reset()
       setTextoBusqueda('')
       setDireccionResuelta(null)
+      coordsDesdeDropdown.current = false
       onSuccess()
     } catch (err: unknown) {
       setErrorEnvio(err instanceof Error ? err.message : 'Error al guardar el reporte.')
@@ -241,14 +235,13 @@ export default function FormularioReporte({
 
       <div className="px-5 pb-5 space-y-5">
 
-        {/* ── PASO 1: Ubicación con autocompletado ── */}
+        {/* PASO 1: Ubicación */}
         <div className="space-y-2">
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
             <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-black flex items-center justify-center">1</span>
             Ubicación del lugar
           </p>
 
-          {/* Input con autocompletado */}
           <div ref={wrapperRef} className="relative">
             <div className="relative flex items-center">
               <Search size={14} className="absolute left-3 text-slate-400 pointer-events-none" />
@@ -257,8 +250,8 @@ export default function FormularioReporte({
                 value={textoBusqueda}
                 onChange={e => {
                   setTextoBusqueda(e.target.value)
-                  // Si edita manualmente, limpiar coords
                   if (coordenadasSeleccionadas) {
+                    coordsDesdeDropdown.current = false
                     setCoordenadasSeleccionadas(null)
                     setDireccionResuelta(null)
                   }
@@ -269,23 +262,18 @@ export default function FormularioReporte({
                            focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500
                            text-slate-700 placeholder:text-slate-400 transition"
               />
-              {/* Indicador: buscando o limpiar */}
               <div className="absolute right-3">
                 {buscando ? (
                   <Loader2 size={14} className="text-blue-500 animate-spin" />
                 ) : textoBusqueda ? (
-                  <button
-                    type="button"
-                    onClick={limpiarUbicacion}
-                    className="text-slate-400 hover:text-slate-600 transition"
-                  >
+                  <button type="button" onClick={limpiarUbicacion} className="text-slate-400 hover:text-slate-600 transition">
                     <X size={14} />
                   </button>
                 ) : null}
               </div>
             </div>
 
-            {/* Dropdown de sugerencias */}
+            {/* Dropdown sugerencias */}
             {dropdownAbierto && sugerencias.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-[600] overflow-hidden">
                 {sugerencias.map((s, i) => {
@@ -303,9 +291,7 @@ export default function FormularioReporte({
                       <MapPin size={14} className="text-blue-500 shrink-0 mt-0.5" />
                       <div className="min-w-0">
                         <p className="text-xs font-semibold text-slate-800 truncate">{nombre}</p>
-                        {detalle && (
-                          <p className="text-[10px] text-slate-400 truncate">{detalle}</p>
-                        )}
+                        {detalle && <p className="text-[10px] text-slate-400 truncate">{detalle}</p>}
                       </div>
                     </button>
                   )
@@ -323,12 +309,10 @@ export default function FormularioReporte({
             )}
           </div>
 
-          {/* Chip de ubicación confirmada */}
+          {/* Chip ubicación confirmada */}
           {coordenadasSeleccionadas && (
-            <div className={`
-              flex items-start gap-2 px-3 py-2.5 rounded-xl border text-[11px]
-              ${cargandoDireccion ? 'bg-slate-50 border-slate-200' : 'bg-blue-50 border-blue-200'}
-            `}>
+            <div className={`flex items-start gap-2 px-3 py-2.5 rounded-xl border text-[11px]
+              ${cargandoDireccion ? 'bg-slate-50 border-slate-200' : 'bg-blue-50 border-blue-200'}`}>
               <MapPin size={13} className={`shrink-0 mt-0.5 ${cargandoDireccion ? 'text-slate-400' : 'text-blue-500'}`} />
               {cargandoDireccion ? (
                 <div className="flex items-center gap-1.5 text-slate-500">
@@ -346,18 +330,17 @@ export default function FormularioReporte({
             </div>
           )}
 
-          {/* Estado vacío */}
           {!coordenadasSeleccionadas && (
             <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-amber-200 bg-amber-50 text-[11px] text-amber-700 font-medium">
               <span>⚠️</span>
-              <span>Busca una dirección arriba para continuar</span>
+              <span>Busca una dirección arriba o toca el mapa para continuar</span>
             </div>
           )}
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
 
-          {/* ── PASO 2: Tipo de local ── */}
+          {/* PASO 2: Tipo de local */}
           <div className="space-y-2">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
               <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-black flex items-center justify-center">2</span>
@@ -387,7 +370,7 @@ export default function FormularioReporte({
             )}
           </div>
 
-          {/* ── PASO 3: Descripción ── */}
+          {/* PASO 3: Descripción */}
           <div className="space-y-2">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
               <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-black flex items-center justify-center">3</span>
@@ -412,7 +395,6 @@ export default function FormularioReporte({
             </div>
           )}
 
-          {/* Botones */}
           <div className="flex gap-2 pt-1">
             <button
               type="button"

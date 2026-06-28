@@ -1,9 +1,10 @@
 'use client'
 import { useState } from 'react'
 import { MapPin, Calendar, ChevronDown, ChevronUp, Pencil, Check, X, Loader2 } from 'lucide-react'
-import { Reporte } from '@/types'
+import { Reporte, CategoriaInfraestructura } from '@/types'
 import { supabase } from '@/lib/supabase'
 
+/* ── Paleta por categoría ─────────────────────────────────────── */
 const CONFIG_INFRA: Record<string, { color: string; bg: string; border: string; emoji: string; label: string }> = {
   'Refugio':             { color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', emoji: '🏠', label: 'Refugio' },
   'Centro Médico':       { color: '#dc2626', bg: '#fef2f2', border: '#fecaca', emoji: '🏥', label: 'Centro Médico' },
@@ -11,6 +12,7 @@ const CONFIG_INFRA: Record<string, { color: string; bg: string; border: string; 
   'Peligro Estructural': { color: '#ea580c', bg: '#fff7ed', border: '#fed7aa', emoji: '⚠️', label: 'Peligro Estructural' },
   'Centro Veterinario':  { color: '#059669', bg: '#f0fdf4', border: '#a7f3d0', emoji: '🐾', label: 'Centro Veterinario' },
 }
+
 const DEFAULT_CONFIG = { color: '#64748b', bg: '#f8fafc', border: '#e2e8f0', emoji: '📍', label: 'Lugar' }
 
 interface TarjetaReporteProps {
@@ -22,12 +24,10 @@ interface TarjetaReporteProps {
 export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado }: TarjetaReporteProps) {
   const cfg = CONFIG_INFRA[reporte.categoria_infraestructura] ?? DEFAULT_CONFIG
 
-  const [expandido, setExpandido]       = useState(false)
-  const [editando, setEditando]         = useState(false)
-  // descripcionGuardada: fuente de verdad local (se actualiza al guardar con éxito)
-  const [descripcionGuardada, setDescripcionGuardada] = useState(reporte.descripcion || '')
+  const [expandido, setExpandido]     = useState(false)
+  const [editando, setEditando]       = useState(false)
   const [textoEdicion, setTextoEdicion] = useState(reporte.descripcion || '')
-  const [guardando, setGuardando]       = useState(false)
+  const [guardando, setGuardando]     = useState(false)
   const [errorGuardar, setErrorGuardar] = useState<string | null>(null)
 
   const formatearFecha = (f: string) => {
@@ -40,29 +40,22 @@ export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado }: 
 
   const guardarDescripcion = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    setGuardando(true)
-    setErrorGuardar(null)
+    setGuardando(true); setErrorGuardar(null)
     try {
       const { error } = await supabase
-        .from('reportes')
-        .update({ descripcion: textoEdicion })
-        .eq('id', reporte.id)
+        .from('reportes').update({ descripcion: textoEdicion }).eq('id', reporte.id)
       if (error) throw error
-      // Actualizar estado local — el realtime en page.tsx también lo propagará
-      setDescripcionGuardada(textoEdicion)
+      reporte.descripcion = textoEdicion
       setEditando(false)
     } catch (err: unknown) {
       setErrorGuardar(err instanceof Error ? err.message : 'Error al guardar')
-    } finally {
-      setGuardando(false)
-    }
+    } finally { setGuardando(false) }
   }
 
   const cancelarEdicion = (e: React.MouseEvent) => {
     e.stopPropagation()
-    setTextoEdicion(descripcionGuardada) // volver al último guardado
-    setEditando(false)
-    setErrorGuardar(null)
+    setTextoEdicion(reporte.descripcion || '')
+    setEditando(false); setErrorGuardar(null)
   }
 
   const toggleExpandir = (e: React.MouseEvent) => {
@@ -72,9 +65,7 @@ export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado }: 
 
   const iniciarEdicion = (e: React.MouseEvent) => {
     e.stopPropagation()
-    setTextoEdicion(descripcionGuardada)
-    setExpandido(true)
-    setEditando(true)
+    setExpandido(true); setEditando(true)
   }
 
   return (
@@ -89,11 +80,15 @@ export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado }: 
         ${estaSeleccionado ? 'shadow-md' : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'}
       `}
     >
-      <div className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-2xl" style={{ backgroundColor: cfg.color }} />
+      {/* Barra de color lateral */}
+      <div
+        className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-2xl"
+        style={{ backgroundColor: cfg.color }}
+      />
 
       <div className="ml-1.5 px-3 py-3 space-y-2">
 
-        {/* Header */}
+        {/* ── Header: badge + fecha ── */}
         <div className="flex items-center justify-between gap-2">
           <div
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold"
@@ -108,7 +103,7 @@ export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado }: 
           </div>
         </div>
 
-        {/* Ubicación */}
+        {/* ── Ubicación ── */}
         <div className="space-y-0.5 px-0.5">
           {(reporte.estado || reporte.municipio) && (
             <p className="text-xs font-semibold text-slate-700 flex items-center gap-1">
@@ -129,7 +124,7 @@ export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado }: 
           )}
         </div>
 
-        {/* Botón expandir */}
+        {/* ── Botón expandir ── */}
         <button
           onClick={toggleExpandir}
           className="w-full flex items-center justify-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-blue-600 transition-colors py-1 rounded-lg hover:bg-blue-50"
@@ -140,7 +135,7 @@ export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado }: 
           }
         </button>
 
-        {/* Panel expandido */}
+        {/* ── Panel expandido ── */}
         {expandido && (
           <div
             className="rounded-xl border p-3 space-y-2"
@@ -153,9 +148,7 @@ export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado }: 
                   value={textoEdicion}
                   onChange={e => setTextoEdicion(e.target.value)}
                   rows={5}
-                  autoFocus
-                  className="w-full text-xs text-slate-700 bg-white border border-blue-300 rounded-lg px-2.5 py-2
-                             focus:outline-none focus:ring-2 focus:ring-blue-400/30 resize-none leading-relaxed"
+                  className="w-full text-xs text-slate-700 bg-white border border-blue-300 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400/30 resize-none leading-relaxed"
                   placeholder="Lista de necesidades..."
                 />
                 {errorGuardar && (
@@ -175,15 +168,15 @@ export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado }: 
                     style={{ backgroundColor: cfg.color }}
                   >
                     {guardando ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
-                    {guardando ? 'Guardando...' : 'OK — Guardar'}
+                    {guardando ? 'Guardando...' : 'Guardar'}
                   </button>
                 </div>
               </>
             ) : (
               <>
                 <div className="text-xs text-slate-700 leading-relaxed whitespace-pre-line min-h-[36px]">
-                  {descripcionGuardada
-                    ? descripcionGuardada
+                  {reporte.descripcion
+                    ? reporte.descripcion
                     : <span className="text-slate-400 italic">Sin descripción aún.</span>
                   }
                 </div>

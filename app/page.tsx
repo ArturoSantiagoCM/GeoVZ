@@ -272,3 +272,34 @@ export default function Page() {
               coordenadasSeleccionadas={coordenadasSeleccionadas}
               setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
               onMarkerClick={r => setReporteSeleccionado(r)}
+              visible={vistaMobile === 'mapa'}
+            />
+          </div>
+        </main>
+      </div>
+
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200
+                      flex items-center justify-around z-[500] shadow-xl">
+        <NavBtn active={vistaMobile === 'lista'} onClick={() => cambiarVistaMobile('lista')} icon={<ListIcon size={20} />} label="Ver Lista" />
+        <NavBtn active={vistaMobile === 'mapa'}  onClick={() => cambiarVistaMobile('mapa')}  icon={<MapIcon  size={20} />} label="Ver Mapa" />
+        <button
+          onClick={() => cambiarVistaMobile('reportar')}
+          className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-colors
+            ${vistaMobile === 'reportar' ? 'text-blue-600' : 'text-slate-500'}`}
+        >
+          <PlusCircle size={24} className={vistaMobile === 'reportar' ? 'text-blue-600' : ''} strokeWidth={vistaMobile === 'reportar' ? 2.5 : 1.8} />
+          <span className={`text-[10px] font-bold ${vistaMobile === 'reportar' ? 'text-blue-600' : 'text-slate-500'}`}>Registrar</span>
+        </button>
+      </nav>
+    </div>
+  )
+}
+
+function NavBtn({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
+  return (
+    <button onClick={onClick} className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-colors ${active ? 'text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}>
+      <span className={active ? '[&>svg]:stroke-[2.5]' : '[&>svg]:stroke-[1.8]'}>{icon}</span>
+      <span className="text-[10px] font-bold">{label}</span>
+    </button>
+  )
+}

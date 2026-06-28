@@ -17,13 +17,14 @@ export type TipoNecesidad =
   | 'Equipo Veterinario'
   | 'Maquinaria de Rescate'
   | 'Objetos para Rescate'
+  | 'Múltiples Necesidades'
 
 // Estructura idéntica a nuestra tabla de Supabase actualizada
 export interface Reporte {
   id: string;
   latitud: number;
   longitud: number;
-  direccion_texto: string; // Nombre amigable guardado por el geocoding
+  direccion_texto: string;
   estado?: string;
   municipio?: string;
   categoria_infraestructura: CategoriaInfraestructura;

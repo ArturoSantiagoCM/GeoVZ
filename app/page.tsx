@@ -130,8 +130,10 @@ export default function Page() {
     )
   }
 
+  const mapaVisible = vistaMobile === 'mapa' || vistaMobile === 'reportar'
+
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-slate-100 pb-16 md:pb-0">
+    <div className="flex flex-col h-screen overflow-hidden bg-slate-100">
 
       {/* ══ NAVBAR ══════════════════════════════════════════════ */}
       <header className="h-14 bg-slate-900 flex items-center justify-between px-4 shrink-0 shadow-lg z-20">
@@ -147,131 +149,34 @@ export default function Page() {
             <p className="text-[10px] text-slate-400 mt-0.5">Plataforma Ciudadana de Ayuda</p>
           </div>
         </div>
-
-        {/* Contador en navbar */}
         <div className="flex items-center gap-2 text-xs text-slate-400">
           <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
           <span className="font-medium text-slate-300">{reportes.length} registros</span>
         </div>
       </header>
 
-      {/* ══ CONTENIDO SPLIT ══════════════════════════════════════ */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+      {/* ══ CONTENIDO ════════════════════════════════════════════ */}
+      {/*
+        En mobile usamos un layout de capas:
+        - El mapa SIEMPRE está montado (altura fija = 100vh - navbar - bottomnav)
+          pero se oculta con visibility:hidden cuando no toca
+        - El panel lateral se superpone encima cuando está activo
+        Esto garantiza que Leaflet siempre tiene dimensiones reales
+      */}
+      <div className="flex-1 relative overflow-hidden" style={{ minHeight: 0 }}>
 
-        {/* ── PANEL LATERAL ── */}
-        <aside className={`
-          w-full md:w-[380px] lg:w-[420px] bg-white border-r border-slate-200
-          flex flex-col shrink-0 overflow-hidden z-10
-          ${vistaMobile === 'mapa' ? 'hidden md:flex' : 'flex'}
-          ${vistaMobile === 'lista' || vistaMobile === 'reportar' ? 'h-full' : 'h-0 md:h-full'}
-        `}>
-
-          <div className="flex-1 overflow-y-auto overscroll-contain">
-
-            {modoReporte ? (
-              <div className="p-4">
-                <FormularioReporte
-                  coordenadasSeleccionadas={coordenadasSeleccionadas}
-                  setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
-                  onCancel={() => cambiarVistaMobile('lista')}
-                  onSuccess={() => cambiarVistaMobile('mapa')}
-                />
-              </div>
-            ) : (
-              <>
-                {/* ── Encabezado ── */}
-                <div className="px-4 pt-5 pb-4 border-b border-slate-100">
-                  <h2 className="text-3xl font-black text-slate-900 tracking-tighter leading-none">
-                    ¿DÓNDE<br/>DONAR?
-                  </h2>
-                  <p className="text-xs text-slate-500 mt-2 font-medium">
-                    Necesidades críticas en tiempo real · Venezuela
-                  </p>
-                </div>
-
-                {/* ── Filtros ── */}
-                <div className="px-4 py-4 border-b border-slate-100">
-                  <FiltrosTipo
-                    filtroTipo={filtroTipo}
-                    setFiltroTipo={setFiltroTipo}
-                    filtroInfraestructura={filtroInfraestructura}
-                    setFiltroInfraestructura={setFiltroInfraestructura}
-                    busqueda={busqueda}
-                    setBusqueda={setBusqueda}
-                  />
-                </div>
-
-                {/* ── Lista ── */}
-                <div className="px-4 py-4 space-y-3 pb-6">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      Casos registrados
-                    </span>
-                    <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full">
-                      {reportesFiltrados.length}
-                    </span>
-                  </div>
-
-                  {reportesFiltrados.length > 0 ? (
-                    reportesFiltrados.map(reporte => (
-                      <TarjetaReporte
-                        key={reporte.id}
-                        reporte={reporte}
-                        estaSeleccionado={reporteSeleccionado?.id === reporte.id}
-                        onSelect={seleccionarTarjeta}
-                      />
-                    ))
-                  ) : (
-                    <div className="text-center py-12 border border-dashed border-slate-200 rounded-2xl bg-slate-50">
-                      <HeartHandshake size={32} className="mx-auto text-slate-300 mb-3" />
-                      <p className="text-sm font-bold text-slate-600">Sin registros activos</p>
-                      <p className="text-xs text-slate-400 mt-1">
-                        {busqueda || filtroInfraestructura
-                          ? 'Prueba cambiando los filtros'
-                          : 'Aún no hay reportes registrados'}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* ── Links de emergencia ── */}
-                <div className="px-4 pb-6 space-y-2 border-t border-slate-100 pt-4">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    Recursos de Ayuda
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <a
-                      href="https://redatudavenezuela.com"
-                      target="_blank" rel="noopener noreferrer"
-                      className="flex items-center justify-between p-3 bg-red-50 hover:bg-red-100
-                                 border border-red-200 rounded-xl text-[11px] font-bold text-red-700 transition"
-                    >
-                      <span>Red Ayuda</span>
-                      <ExternalLink size={11} className="text-red-400 shrink-0" />
-                    </a>
-                    <a
-                      href="https://hospitalesenvenezuela.com"
-                      target="_blank" rel="noopener noreferrer"
-                      className="flex items-center justify-between p-3 bg-blue-50 hover:bg-blue-100
-                                 border border-blue-200 rounded-xl text-[11px] font-bold text-blue-700 transition"
-                    >
-                      <span>Hospitales</span>
-                      <ExternalLink size={11} className="text-blue-400 shrink-0" />
-                    </a>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </aside>
-
-        {/* ── MAPA ── */}
-        <main className={`
-          flex-1 relative
-          ${vistaMobile === 'mapa' ? 'flex' : 'hidden md:flex'}
-          flex-col
-        `}
-          style={{ minHeight: 0 }}
+        {/* ── MAPA: siempre montado, siempre con dimensiones reales ── */}
+        <div
+          className="absolute inset-0 md:relative md:flex-1"
+          style={{
+            // En mobile: mostrar/ocultar sin desmontar
+            visibility: mapaVisible ? 'visible' : 'hidden',
+            // pointer-events off cuando oculto para no interceptar taps
+            pointerEvents: mapaVisible ? 'auto' : 'none',
+            // En desktop siempre visible
+            height: '100%',
+            width: '100%',
+          }}
         >
           {/* Banner modo reporte */}
           {modoReporte && !coordenadasSeleccionadas && (
@@ -288,22 +193,75 @@ export default function Page() {
             </div>
           )}
 
-          <div className="flex-1" style={{ minHeight: 0 }}>
-            <Mapa
-              reportes={reportesAgrupados}
-              reporteSeleccionado={reporteSeleccionado}
+          <Mapa
+            reportes={reportesAgrupados}
+            reporteSeleccionado={reporteSeleccionado}
+            modoReporte={modoReporte}
+            coordenadasSeleccionadas={coordenadasSeleccionadas}
+            setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
+            onMarkerClick={r => setReporteSeleccionado(r)}
+            visible={mapaVisible}
+          />
+        </div>
+
+        {/* ── PANEL LATERAL / LISTA / FORMULARIO ── */}
+        {/*
+          En mobile: se superpone encima del mapa cuando está activo
+          En desktop: columna lateral fija a la izquierda
+        */}
+        <aside
+          className="
+            absolute inset-0 z-10 bg-white overflow-y-auto overscroll-contain
+            md:relative md:z-auto md:w-[380px] md:lg:w-[420px] md:shrink-0 md:border-r md:border-slate-200
+          "
+          style={{
+            display: (vistaMobile === 'lista' || vistaMobile === 'reportar') ? 'block' : 'none',
+          }}
+        >
+          {/* En desktop siempre visible */}
+          <div className="hidden md:block h-full overflow-y-auto overscroll-contain">
+            <PanelContenido
               modoReporte={modoReporte}
               coordenadasSeleccionadas={coordenadasSeleccionadas}
               setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
-              onMarkerClick={r => setReporteSeleccionado(r)}
+              cambiarVistaMobile={cambiarVistaMobile}
+              filtroTipo={filtroTipo}
+              setFiltroTipo={setFiltroTipo}
+              filtroInfraestructura={filtroInfraestructura}
+              setFiltroInfraestructura={setFiltroInfraestructura}
+              busqueda={busqueda}
+              setBusqueda={setBusqueda}
+              reportesFiltrados={reportesFiltrados}
+              reporteSeleccionado={reporteSeleccionado}
+              seleccionarTarjeta={seleccionarTarjeta}
             />
           </div>
-        </main>
+
+          {/* En mobile: solo cuando lista o reportar */}
+          <div className="md:hidden">
+            <PanelContenido
+              modoReporte={modoReporte}
+              coordenadasSeleccionadas={coordenadasSeleccionadas}
+              setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
+              cambiarVistaMobile={cambiarVistaMobile}
+              filtroTipo={filtroTipo}
+              setFiltroTipo={setFiltroTipo}
+              filtroInfraestructura={filtroInfraestructura}
+              setFiltroInfraestructura={setFiltroInfraestructura}
+              busqueda={busqueda}
+              setBusqueda={setBusqueda}
+              reportesFiltrados={reportesFiltrados}
+              reporteSeleccionado={reporteSeleccionado}
+              seleccionarTarjeta={seleccionarTarjeta}
+            />
+          </div>
+        </aside>
+
       </div>
 
       {/* ══ NAVEGACIÓN MOBILE ════════════════════════════════════ */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200
-                      flex items-center justify-around z-[500] shadow-xl">
+      <nav className="md:hidden h-16 bg-white border-t border-slate-200
+                      flex items-center justify-around z-[500] shadow-xl shrink-0">
         <NavBtn
           active={vistaMobile === 'lista'}
           onClick={() => cambiarVistaMobile('lista')}
@@ -316,7 +274,6 @@ export default function Page() {
           icon={<MapIcon size={20} />}
           label="Ver Mapa"
         />
-        {/* Botón principal (FAB-style) */}
         <button
           onClick={() => cambiarVistaMobile('reportar')}
           className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-colors
@@ -333,6 +290,136 @@ export default function Page() {
         </button>
       </nav>
     </div>
+  )
+}
+
+/* ══ Panel de contenido (lista + formulario) ════════════════════ */
+function PanelContenido({
+  modoReporte,
+  coordenadasSeleccionadas,
+  setCoordenadasSeleccionadas,
+  cambiarVistaMobile,
+  filtroTipo,
+  setFiltroTipo,
+  filtroInfraestructura,
+  setFiltroInfraestructura,
+  busqueda,
+  setBusqueda,
+  reportesFiltrados,
+  reporteSeleccionado,
+  seleccionarTarjeta,
+}: {
+  modoReporte: boolean
+  coordenadasSeleccionadas: { lat: number; lng: number } | null
+  setCoordenadasSeleccionadas: (c: { lat: number; lng: number } | null) => void
+  cambiarVistaMobile: (v: MobileView) => void
+  filtroTipo: string
+  setFiltroTipo: (t: string) => void
+  filtroInfraestructura: string
+  setFiltroInfraestructura: (i: string) => void
+  busqueda: string
+  setBusqueda: (b: string) => void
+  reportesFiltrados: Reporte[]
+  reporteSeleccionado: Reporte | null
+  seleccionarTarjeta: (r: Reporte) => void
+}) {
+  if (modoReporte) {
+    return (
+      <div className="p-4 pb-8">
+        <FormularioReporte
+          coordenadasSeleccionadas={coordenadasSeleccionadas}
+          setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
+          onCancel={() => cambiarVistaMobile('lista')}
+          onSuccess={() => cambiarVistaMobile('mapa')}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <>
+      {/* Encabezado */}
+      <div className="px-4 pt-5 pb-4 border-b border-slate-100">
+        <h2 className="text-3xl font-black text-slate-900 tracking-tighter leading-none">
+          ¿DÓNDE<br/>DONAR?
+        </h2>
+        <p className="text-xs text-slate-500 mt-2 font-medium">
+          Necesidades críticas en tiempo real · Venezuela
+        </p>
+      </div>
+
+      {/* Filtros */}
+      <div className="px-4 py-4 border-b border-slate-100">
+        <FiltrosTipo
+          filtroTipo={filtroTipo}
+          setFiltroTipo={setFiltroTipo}
+          filtroInfraestructura={filtroInfraestructura}
+          setFiltroInfraestructura={setFiltroInfraestructura}
+          busqueda={busqueda}
+          setBusqueda={setBusqueda}
+        />
+      </div>
+
+      {/* Lista */}
+      <div className="px-4 py-4 space-y-3 pb-6">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            Casos registrados
+          </span>
+          <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full">
+            {reportesFiltrados.length}
+          </span>
+        </div>
+
+        {reportesFiltrados.length > 0 ? (
+          reportesFiltrados.map(reporte => (
+            <TarjetaReporte
+              key={reporte.id}
+              reporte={reporte}
+              estaSeleccionado={reporteSeleccionado?.id === reporte.id}
+              onSelect={seleccionarTarjeta}
+            />
+          ))
+        ) : (
+          <div className="text-center py-12 border border-dashed border-slate-200 rounded-2xl bg-slate-50">
+            <HeartHandshake size={32} className="mx-auto text-slate-300 mb-3" />
+            <p className="text-sm font-bold text-slate-600">Sin registros activos</p>
+            <p className="text-xs text-slate-400 mt-1">
+              {busqueda || filtroInfraestructura
+                ? 'Prueba cambiando los filtros'
+                : 'Aún no hay reportes registrados'}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Links de emergencia */}
+      <div className="px-4 pb-6 space-y-2 border-t border-slate-100 pt-4">
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+          Recursos de Ayuda
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <a
+            href="https://redatudavenezuela.com"
+            target="_blank" rel="noopener noreferrer"
+            className="flex items-center justify-between p-3 bg-red-50 hover:bg-red-100
+                       border border-red-200 rounded-xl text-[11px] font-bold text-red-700 transition"
+          >
+            <span>Red Ayuda</span>
+            <ExternalLink size={11} className="text-red-400 shrink-0" />
+          </a>
+          <a
+            href="https://hospitalesenvenezuela.com"
+            target="_blank" rel="noopener noreferrer"
+            className="flex items-center justify-between p-3 bg-blue-50 hover:bg-blue-100
+                       border border-blue-200 rounded-xl text-[11px] font-bold text-blue-700 transition"
+          >
+            <span>Hospitales</span>
+            <ExternalLink size={11} className="text-blue-400 shrink-0" />
+          </a>
+        </div>
+      </div>
+    </>
   )
 }
 

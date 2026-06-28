@@ -21,14 +21,6 @@ const INFRA_CONFIG: Record<string, { color: string; emoji: string; label: string
   'Centro Veterinario':  { color: '#059669', emoji: '🐾', label: 'Centro Veterinario' },
 }
 
-const LEYENDA = [
-  { color: '#2563eb', emoji: '🏠', label: 'Refugio' },
-  { color: '#dc2626', emoji: '🏥', label: 'Centro Médico' },
-  { color: '#78716c', emoji: '🧱', label: 'Estructura Caída' },
-  { color: '#ea580c', emoji: '⚠️', label: 'Peligro Estructural' },
-  { color: '#059669', emoji: '🐾', label: 'Centro Veterinario' },
-]
-
 /* ── Icono SVG por categoría ─────────────────────────────────── */
 const crearIconoInfraestructura = (categoria: string): L.DivIcon => {
   const cfg = INFRA_CONFIG[categoria] ?? { color: '#64748b', emoji: '📍', label: categoria }
@@ -315,38 +307,7 @@ export default function Mapa({
         )}
       </MapContainer>
 
-      {/* Leyenda flotante — compacta en mobile */}
-      {visible && (
-      <div style={{
-        position: 'absolute', bottom: 16, right: 10, zIndex: 400,
-        backgroundColor: 'rgba(255,255,255,0.96)',
-        backdropFilter: 'blur(8px)',
-        borderRadius: 12, padding: '8px 12px',
-        boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-        border: '1px solid #e2e8f0',
-        pointerEvents: 'none',
-      }}>
-        <p style={{ fontSize: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#94a3b8', marginBottom: 6 }}>
-          Leyenda
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-          {LEYENDA.map(item => (
-            <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{
-                width: 10, height: 10, borderRadius: '50%',
-                backgroundColor: item.color,
-                border: '2px solid white',
-                boxShadow: `0 0 0 1.5px ${item.color}55`,
-                flexShrink: 0,
-              }} />
-              <span style={{ fontSize: 10, color: '#334155', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                {item.emoji} {item.label}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>      )
-      }
+
     </div>
   )
 }

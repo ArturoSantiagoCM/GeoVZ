@@ -10,6 +10,7 @@ import TarjetaReporte from '@/components/TarjetaReporte'
 import FormularioReporte from '@/components/FormularioReporte'
 import Image from 'next/image' 
 
+// Isolamento absoluto para o Leaflet não rodar no servidor do Vercel
 const Mapa = dynamic(() => import('@/components/Mapa'), {
   ssr: false,
   loading: () => (
@@ -58,7 +59,7 @@ export default function Page() {
         else if (data) setReportes(data as Reporte[])
       } catch (err) {
         console.error('Erro crítico de rede:', err)
-      } finaly {
+      } finally { // Corrigido aqui: "finally" com dois 'l'
         setCargando(false)
       }
     }
@@ -315,7 +316,7 @@ export default function Page() {
           <span className="text-[10px] tracking-wide font-medium">Ver Lista</span>
         </button>
 
-        {/* Floating Action Button Centrado para o Novo Registro */}
+        {/* Floating Action Button Centrado */}
         <div className="relative -top-4">
           <button
             onClick={() => cambiarVistaMobile('reportar')}

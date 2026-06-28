@@ -4,121 +4,129 @@ import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 're
 import { Reporte } from '@/types'
 import L from 'leaflet'
 
-// ─── Colores por Infraestructura ──────────────────────────────────────────────
-const coloresPorInfraestructura: Record<string, string> = {
-  'Refugio':             '#3b82f6', // Azul
-  'Centro Médico':       '#ef4444', // Rojo
-  'Estructura_caida':    '#78716c', // Gris tierra
-  'Peligro Estructural': '#f97316', // Naranja
-  'Centro Veterinario':  '#10b981', // Verde
+/* ── Config visual por categoría ─────────────────────────────── */
+const INFRA_CONFIG: Record<string, { color: string; emoji: string; label: string }> = {
+  'Refugio':             { color: '#2563eb', emoji: '🏠', label: 'Refugio' },
+  'Centro Médico':       { color: '#dc2626', emoji: '🏥', label: 'Centro Médico' },
+  'Estructura_caida':    { color: '#78716c', emoji: '🧱', label: 'Estructura Caída' },
+  'Peligro Estructural': { color: '#ea580c', emoji: '⚠️', label: 'Peligro Estructural' },
+  'Centro Veterinario':  { color: '#059669', emoji: '🐾', label: 'Centro Veterinario' },
 }
 
-// ─── Iconos SVG por Categoría de Infraestructura ──────────────────────────────
-const crearIconoInfraestructura = (categoria: string) => {
-  const color = coloresPorInfraestructura[categoria] || '#64748b'
+/* ── Leyenda flotante ─────────────────────────────────────────── */
+const LEYENDA = [
+  { color: '#2563eb', emoji: '🏠', label: 'Refugio' },
+  { color: '#dc2626', emoji: '🏥', label: 'Centro Médico' },
+  { color: '#78716c', emoji: '🧱', label: 'Estructura Caída' },
+  { color: '#ea580c', emoji: '⚠️', label: 'Peligro Estructural' },
+  { color: '#059669', emoji: '🐾', label: 'Centro Veterinario' },
+]
 
-  const svgsPorCategoria: Record<string, string> = {
+/* ── Crear icono SVG por categoría ───────────────────────────── */
+const crearIconoInfraestructura = (categoria: string): L.DivIcon => {
+  const cfg = INFRA_CONFIG[categoria] ?? { color: '#64748b', emoji: '📍', label: categoria }
+  const c = cfg.color
+
+  // SVG interior según categoría
+  const svgInterior: Record<string, string> = {
     'Refugio': `
-      <!-- Casa -->
-      <polygon points="15,2 28,13 28,30 2,30 2,13" fill="${color}" stroke="white" stroke-width="1.5"/>
-      <rect x="10" y="18" width="10" height="12" fill="white" opacity="0.9"/>
-      <polygon points="15,2 2,13 28,13" fill="${color}" stroke="white" stroke-width="1.5"/>
+      <polygon points="16,4 28,14 28,28 4,28" fill="${c}" stroke="white" stroke-width="1.2"/>
+      <rect x="11" y="18" width="10" height="10" fill="white" opacity="0.9"/>
+      <polygon points="16,4 4,14 28,14" fill="${c}" stroke="white" stroke-width="1.2"/>
     `,
     'Centro Médico': `
-      <!-- Cruz médica -->
-      <rect x="2" y="2" width="26" height="26" rx="5" fill="${color}"/>
-      <rect x="12" y="6" width="6" height="18" fill="white"/>
-      <rect x="6" y="12" width="18" height="6" fill="white"/>
+      <rect x="3" y="3" width="26" height="26" rx="5" fill="${c}"/>
+      <rect x="13" y="7" width="6" height="18" fill="white"/>
+      <rect x="7" y="13" width="18" height="6" fill="white"/>
     `,
     'Estructura_caida': `
-      <!-- Escombros -->
-      <polygon points="4,28 12,8 20,22 26,12 28,28" fill="${color}" stroke="white" stroke-width="1.2"/>
+      <polygon points="4,28 12,8 20,22 26,12 28,28" fill="${c}" stroke="white" stroke-width="1"/>
       <line x1="2" y1="28" x2="28" y2="28" stroke="white" stroke-width="2"/>
-      <line x1="8" y1="20" x2="14" y2="26" stroke="white" stroke-width="1.5"/>
-      <line x1="18" y1="16" x2="24" y2="22" stroke="white" stroke-width="1.5"/>
     `,
     'Peligro Estructural': `
-      <!-- Edificio con triángulo de alerta -->
-      <rect x="4" y="10" width="22" height="20" rx="2" fill="${color}" stroke="white" stroke-width="1.2"/>
-      <rect x="8" y="14" width="5" height="5" rx="1" fill="white" opacity="0.8"/>
-      <rect x="17" y="14" width="5" height="5" rx="1" fill="white" opacity="0.8"/>
-      <rect x="12" y="22" width="6" height="8" fill="white" opacity="0.9"/>
-      <polygon points="15,0 28,10 2,10" fill="#f59e0b" stroke="white" stroke-width="1.2"/>
-      <text x="15" y="9" text-anchor="middle" font-size="8" font-weight="bold" fill="white">!</text>
+      <polygon points="16,3 29,26 3,26" fill="${c}" stroke="white" stroke-width="1.5"/>
+      <rect x="14.5" y="12" width="3" height="8" rx="1" fill="white"/>
+      <circle cx="16" cy="23" r="1.5" fill="white"/>
     `,
     'Centro Veterinario': `
-      <!-- Pata de animal -->
-      <ellipse cx="15" cy="17" rx="8" ry="9" fill="${color}"/>
-      <ellipse cx="8" cy="8" rx="4" ry="5" fill="${color}"/>
-      <ellipse cx="15" cy="5" rx="4" ry="5" fill="${color}"/>
-      <ellipse cx="22" cy="8" rx="4" ry="5" fill="${color}"/>
-      <ellipse cx="8" cy="8" rx="2.5" ry="3" fill="white" opacity="0.6"/>
-      <ellipse cx="15" cy="5" rx="2.5" ry="3" fill="white" opacity="0.6"/>
-      <ellipse cx="22" cy="8" rx="2.5" ry="3" fill="white" opacity="0.6"/>
+      <ellipse cx="16" cy="18" rx="8" ry="9" fill="${c}"/>
+      <ellipse cx="8"  cy="9"  rx="4" ry="5" fill="${c}"/>
+      <ellipse cx="16" cy="6"  rx="4" ry="5" fill="${c}"/>
+      <ellipse cx="24" cy="9"  rx="4" ry="5" fill="${c}"/>
     `,
   }
 
-  const svgInterior = svgsPorCategoria[categoria] || `<circle cx="15" cy="15" r="12" fill="${color}"/>`
+  const interior = svgInterior[categoria] ?? `<circle cx="16" cy="16" r="10" fill="${c}"/>`
 
-  const svgHtml = `
-    <div style="filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.4)); width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">
-      <svg width="36" height="36" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="15" cy="15" r="14" fill="white" stroke="${color}" stroke-width="2"/>
-        ${svgInterior}
+  const html = `
+    <div style="
+      filter: drop-shadow(0 3px 6px rgba(0,0,0,0.3));
+      width: 38px; height: 38px;
+      display: flex; align-items: center; justify-content: center;
+    ">
+      <svg width="38" height="38" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="16" cy="16" r="15" fill="white" stroke="${c}" stroke-width="2.5"/>
+        ${interior}
       </svg>
     </div>
   `
 
   return L.divIcon({
-    html: svgHtml,
+    html,
     className: 'infra-marker-icon',
-    iconSize: [36, 36],
-    iconAnchor: [18, 18],
-    popupAnchor: [0, -20]
+    iconSize: [38, 38],
+    iconAnchor: [19, 19],
+    popupAnchor: [0, -22],
   })
 }
 
-// ─── Icono temporal para nuevo reporte ────────────────────────────────────────
-const crearIconoTemporal = () => {
-  const svgHtml = `
-    <div style="position: relative; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.35)); display: flex; align-items: center; justify-content: center; width: 32px; height: 42px;">
-      <svg width="32" height="42" viewBox="0 0 30 42" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M15 0C6.71573 0 0 6.71573 0 15C0 26.25 15 42 15 42C15 42 30 26.25 30 15C30 6.71573 23.2843 0 15 0ZM15 20.25C12.1005 20.25 9.75 17.8995 9.75 15C9.75 12.1005 12.1005 9.75 15 9.75C17.8995 9.75 20.25 12.1005 20.25 15C20.25 17.8995 17.8995 20.25 15 20.25Z" fill="#2563eb"/>
-        <circle cx="15" cy="15" r="5" fill="white"/>
+/* ── Icono temporal (nuevo reporte) ──────────────────────────── */
+const crearIconoTemporal = (): L.DivIcon => {
+  const html = `
+    <div style="position:relative; display:flex; align-items:center; justify-content:center; width:34px; height:44px;">
+      <div style="
+        position:absolute; width:22px; height:22px;
+        background:rgba(37,99,235,0.35); border-radius:50%;
+        animation: pulse-ping 1.5s ease-out infinite; top:3px; left:6px;
+      "></div>
+      <svg width="34" height="44" viewBox="0 0 34 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M17 1C8.163 1 1 8.163 1 17C1 29.25 17 43 17 43C17 43 33 29.25 33 17C33 8.163 25.837 1 17 1Z" fill="#2563eb" stroke="white" stroke-width="1.5"/>
+        <circle cx="17" cy="17" r="6" fill="white"/>
+        <circle cx="17" cy="17" r="3" fill="#2563eb"/>
       </svg>
-      <span style="position: absolute; width: 20px; height: 20px; background: rgba(37, 99, 235, 0.4); border-radius: 50%; animation: pulse-ping 1.5s infinite; z-index: -1;"></span>
     </div>
   `
   return L.divIcon({
-    html: svgHtml,
+    html,
     className: 'temp-marker-icon',
-    iconSize: [32, 42],
-    iconAnchor: [16, 42]
+    iconSize: [34, 44],
+    iconAnchor: [17, 44],
+    popupAnchor: [0, -46],
   })
 }
 
-// ─── Listener de clics ────────────────────────────────────────────────────────
+/* ── Listener de clicks en mapa ──────────────────────────────── */
 function MapClickHandler({
   modoReporte,
-  setCoordenadasSeleccionadas
+  setCoordenadasSeleccionadas,
 }: {
   modoReporte: boolean
-  setCoordenadasSeleccionadas: (coords: { lat: number; lng: number } | null) => void
+  setCoordenadasSeleccionadas: (c: { lat: number; lng: number } | null) => void
 }) {
   useMapEvents({
     click(e) {
       if (modoReporte) {
         setCoordenadasSeleccionadas({ lat: e.latlng.lat, lng: e.latlng.lng })
       }
-    }
+    },
   })
   return null
 }
 
-// ─── Controlador de cámara (flyTo) ────────────────────────────────────────────
+/* ── Controlador de cámara ───────────────────────────────────── */
 function MapController({
   reporteSeleccionado,
-  coordenadasSeleccionadas
+  coordenadasSeleccionadas,
 }: {
   reporteSeleccionado: Reporte | null
   coordenadasSeleccionadas: { lat: number; lng: number } | null
@@ -126,122 +134,144 @@ function MapController({
   const map = useMap()
 
   useEffect(() => {
-    if (
-      reporteSeleccionado &&
-      typeof reporteSeleccionado.latitud === 'number' &&
-      typeof reporteSeleccionado.longitud === 'number' &&
-      !isNaN(reporteSeleccionado.latitud) &&
-      !isNaN(reporteSeleccionado.longitud)
-    ) {
-      map.flyTo([reporteSeleccionado.latitud, reporteSeleccionado.longitud], 14, {
-        animate: true,
-        duration: 1.2
-      })
+    const r = reporteSeleccionado
+    if (r && typeof r.latitud === 'number' && typeof r.longitud === 'number'
+        && !isNaN(r.latitud) && !isNaN(r.longitud)) {
+      map.flyTo([r.latitud, r.longitud], 14, { animate: true, duration: 1.2 })
     }
   }, [reporteSeleccionado, map])
 
   useEffect(() => {
-    if (
-      coordenadasSeleccionadas &&
-      !isNaN(coordenadasSeleccionadas.lat) &&
-      !isNaN(coordenadasSeleccionadas.lng)
-    ) {
-      map.flyTo([coordenadasSeleccionadas.lat, coordenadasSeleccionadas.lng], 14, {
-        animate: true,
-        duration: 1.2
-      })
+    const c = coordenadasSeleccionadas
+    if (c && !isNaN(c.lat) && !isNaN(c.lng)) {
+      map.flyTo([c.lat, c.lng], 14, { animate: true, duration: 1.2 })
     }
   }, [coordenadasSeleccionadas, map])
 
   return null
 }
 
-// ─── Props ─────────────────────────────────────────────────────────────────────
+/* ── Props ───────────────────────────────────────────────────── */
 interface MapaProps {
   reportes: Reporte[]
   reporteSeleccionado: Reporte | null
   modoReporte: boolean
   coordenadasSeleccionadas: { lat: number; lng: number } | null
-  setCoordenadasSeleccionadas: (coords: { lat: number; lng: number } | null) => void
+  setCoordenadasSeleccionadas: (c: { lat: number; lng: number } | null) => void
   onMarkerClick: (reporte: Reporte) => void
 }
 
-// ─── Leyenda flotante ──────────────────────────────────────────────────────────
-const leyendaItems = [
-  { color: '#3b82f6', label: 'Refugio' },
-  { color: '#ef4444', label: 'Centro Médico' },
-  { color: '#78716c', label: 'Estructura caída' },
-  { color: '#f97316', label: 'Peligro estructural' },
-  { color: '#10b981', label: 'Centro Veterinario' },
-]
-
-// ─── Componente principal ──────────────────────────────────────────────────────
+/* ── Componente principal ────────────────────────────────────── */
 export default function Mapa({
   reportes,
   reporteSeleccionado,
   modoReporte,
   coordenadasSeleccionadas,
   setCoordenadasSeleccionadas,
-  onMarkerClick
+  onMarkerClick,
 }: MapaProps) {
   return (
     <div className="w-full h-full relative">
-      <style jsx global>{`
+
+      {/* Estilos globales inline — garantiza que funcionen incluso sin CSS externo */}
+      <style>{`
         @keyframes pulse-ping {
-          0%   { transform: scale(0.6); opacity: 1; }
-          100% { transform: scale(2.4); opacity: 0; }
+          0%   { transform: scale(0.5); opacity: 0.9; }
+          100% { transform: scale(3);   opacity: 0; }
         }
-        .infra-marker-icon, .temp-marker-icon, .custom-marker-icon {
+        .infra-marker-icon,
+        .temp-marker-icon {
           background: transparent !important;
           border: none !important;
+          box-shadow: none !important;
         }
+        .leaflet-container {
+          font-family: inherit;
+          background: #e2e8f0;
+        }
+        .leaflet-popup-content-wrapper {
+          border-radius: 12px !important;
+          box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important;
+          border: 1px solid #e2e8f0 !important;
+          padding: 0 !important;
+          overflow: hidden !important;
+        }
+        .leaflet-popup-content { margin: 0 !important; }
       `}</style>
 
       <MapContainer
         center={[8.0, -66.0]}
         zoom={6}
-        style={{ height: '100%', width: '100%' }}
-        className="z-0"
+        style={{ height: '100%', width: '100%', zIndex: 0 }}
+        zoomControl={true}
       >
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         />
 
-        <MapClickHandler modoReporte={modoReporte} setCoordenadasSeleccionadas={setCoordenadasSeleccionadas} />
-        <MapController reporteSeleccionado={reporteSeleccionado} coordenadasSeleccionadas={coordenadasSeleccionadas} />
+        <MapClickHandler
+          modoReporte={modoReporte}
+          setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
+        />
+        <MapController
+          reporteSeleccionado={reporteSeleccionado}
+          coordenadasSeleccionadas={coordenadasSeleccionadas}
+        />
 
-        {/* Marcadores por infraestructura */}
+        {/* Marcadores de reportes */}
         {reportes
           .filter(r => !isNaN(Number(r.latitud)) && !isNaN(Number(r.longitud)))
           .map(reporte => {
-            const icono = crearIconoInfraestructura(reporte.categoria_infraestructura)
+            const cfg = INFRA_CONFIG[reporte.categoria_infraestructura] ?? { color: '#64748b', emoji: '📍', label: reporte.categoria_infraestructura }
             return (
               <Marker
                 key={reporte.id}
                 position={[Number(reporte.latitud), Number(reporte.longitud)]}
-                icon={icono}
+                icon={crearIconoInfraestructura(reporte.categoria_infraestructura)}
                 eventHandlers={{ click: () => onMarkerClick(reporte) }}
               >
                 <Popup>
-                  <div className="text-xs font-sans p-1 text-slate-800 min-w-[160px]">
-                    <div className="font-bold text-sm mb-1" style={{ color: coloresPorInfraestructura[reporte.categoria_infraestructura] || '#64748b' }}>
-                      {reporte.categoria_infraestructura.replace('_', ' ')}
-                    </div>
-                    {reporte.direccion_texto && (
-                      <p className="text-slate-500 text-[11px] mb-2 leading-tight">{reporte.direccion_texto}</p>
-                    )}
-                    {reporte.descripcion && (
-                      <div className="border-t border-slate-100 pt-1.5 mt-1">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Necesidades</span>
-                        <p className="text-slate-700 text-[11px] leading-relaxed whitespace-pre-line">{reporte.descripcion}</p>
+                  <div style={{ fontFamily: 'inherit', minWidth: 180, maxWidth: 240 }}>
+                    {/* Header del popup */}
+                    <div style={{ backgroundColor: cfg.color, padding: '10px 14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 18 }}>{cfg.emoji}</span>
+                        <span style={{ color: 'white', fontWeight: 700, fontSize: 13 }}>
+                          {cfg.label}
+                        </span>
                       </div>
-                    )}
+                      {(reporte.estado || reporte.municipio) && (
+                        <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 2 }}>
+                          {[reporte.estado, reporte.municipio].filter(Boolean).join(' — ')}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Body del popup */}
+                    <div style={{ padding: '10px 14px' }}>
+                      {reporte.direccion_texto && (
+                        <p style={{ color: '#64748b', fontSize: 11, marginBottom: 8, lineHeight: 1.4 }}>
+                          📍 {reporte.direccion_texto}
+                        </p>
+                      )}
+                      {reporte.descripcion && (
+                        <div>
+                          <p style={{ color: '#94a3b8', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+                            Necesidades
+                          </p>
+                          <p style={{ color: '#1e293b', fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+                            {reporte.descripcion}
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </Popup>
               </Marker>
             )
-          })}
+          })
+        }
 
         {/* Marcador temporal */}
         {modoReporte && coordenadasSeleccionadas && (
@@ -250,27 +280,56 @@ export default function Mapa({
             icon={crearIconoTemporal()}
           >
             <Popup>
-              <div className="text-xs text-center p-1">
-                <strong>Ubicación seleccionada</strong>
-                <p className="text-slate-500 mt-0.5">Completa el formulario.</p>
+              <div style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'inherit' }}>
+                <p style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>📍 Ubicación seleccionada</p>
+                <p style={{ color: '#64748b', fontSize: 11, marginTop: 3 }}>Completa el formulario.</p>
               </div>
             </Popup>
           </Marker>
         )}
       </MapContainer>
 
-      {/* Leyenda flotante */}
-      <div className="absolute bottom-6 right-3 z-[400] bg-white/95 backdrop-blur-sm p-3 rounded-xl shadow-lg border border-slate-200 pointer-events-none">
-        <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-2">Leyenda</p>
-        <div className="space-y-1.5">
-          {leyendaItems.map(item => (
-            <div key={item.label} className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full shrink-0 border-2 border-white shadow-sm" style={{ backgroundColor: item.color }} />
-              <span className="text-[10px] font-medium text-slate-700 whitespace-nowrap">{item.label}</span>
+      {/* ── Leyenda flotante ── */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 24,
+          right: 12,
+          zIndex: 400,
+          backgroundColor: 'rgba(255,255,255,0.97)',
+          backdropFilter: 'blur(8px)',
+          borderRadius: 14,
+          padding: '10px 14px',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+          border: '1px solid #e2e8f0',
+          pointerEvents: 'none',
+        }}
+      >
+        <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#94a3b8', marginBottom: 8 }}>
+          Leyenda
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {LEYENDA.map(item => (
+            <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <div style={{
+                width: 12, height: 12, borderRadius: '50%',
+                backgroundColor: item.color,
+                border: '2px solid white',
+                boxShadow: `0 0 0 1.5px ${item.color}55`,
+                flexShrink: 0,
+              }} />
+              <span style={{ fontSize: 11, color: '#334155', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                {item.emoji} {item.label}
+              </span>
             </div>
           ))}
         </div>
       </div>
+
+      {/* ── Cursor crosshair en modo reporte ── */}
+      {modoReporte && (
+        <style>{`.leaflet-container { cursor: crosshair !important; }`}</style>
+      )}
     </div>
   )
 }

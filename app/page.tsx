@@ -1,6 +1,6 @@
 'use client'
 
-import { ExternalLink, Map as MapIcon, List as ListIcon, PlusCircle, ShieldAlert, HeartHandshake } from 'lucide-react'
+import { ExternalLink, Map as MapIcon, List as ListIcon, PlusCircle, HeartHandshake } from 'lucide-react'
 import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Reporte } from '@/types'
@@ -10,7 +10,7 @@ import TarjetaReporte from '@/components/TarjetaReporte'
 import FormularioReporte from '@/components/FormularioReporte'
 import Image from 'next/image' 
 
-// Cargamos el mapa desactivando estrictamente el SSR (Server-Side Rendering) para que Vercel no falle
+// Desactivación completa de SSR para Leaflet para Vercel
 const Mapa = dynamic(() => import('@/components/Mapa'), {
   ssr: false,
   loading: () => (
@@ -30,7 +30,6 @@ export default function Page() {
   const [vistaMobile, setVistaMobile] = useState<MobileView>('lista')
 
   // Estados de Filtros
-  const [filtroTipo, setFiltroTipo] = useState('')
   const [filtroInfraestructura, setFiltroInfraestructura] = useState('')
   const [busqueda, setBusqueda] = useState('')
 
@@ -49,7 +48,7 @@ export default function Page() {
     }
   }
 
-  // Cargar reportes iniciales y configurar canal en tiempo real
+  // Cargar reportes iniciales y tiempo real
   useEffect(() => {
     const obtenerReportesIniciales = async () => {
       try {
@@ -64,7 +63,7 @@ export default function Page() {
           setReportes(data as Reporte[])
         }
       } catch (err) {
-        console.error('Error de conexión con Supabase:', err)
+        console.error('Error crítico de red:', err)
       } finally {
         setCargando(false)
       }
@@ -85,30 +84,36 @@ export default function Page() {
       .subscribe()
 
     return () => {
-      supabase.removeChannel(channel)
+      if (channel) supabase.removeChannel(channel)
     }
   }, [])
 
-  // Agrupar reportes en las mismas coordenadas exactas de forma segura
+  // Agrupar reportes evitando problemas de tipos y asegurando números reales
   const reportesAgrupadosParaMapa = useMemo(() => {
-    if (!reportes.length) return []
+    if (!reportes || reportes.length === 0) return []
     const mapaAgrupado: { [key: string]: Reporte } = {}
 
     reportes.forEach((reporte) => {
-      const lat = Number(reporte.latitud || 0).toFixed(5)
-      const lng = Number(reporte.longitud || 0).toFixed(5)
-      const llaveCoordenada = `${lat}_${lng}`
+      const latNum = Number(reporte.latitud)
+      const lngNum = Number(reporte.longitud)
+      
+      if (isNaN(latNum) || !reporte.latitud || isNaN(lngNum) || !reporte.longitud) return
+      
+      const latKey = latNum.toFixed(5)
+      const lngKey = lngNum.toFixed(5)
+      const llaveCoordenada = `${latKey}_${lngKey}`
 
       if (mapaAgrupado[llaveCoordenada]) {
         mapaAgrupado[llaveCoordenada] = {
           ...mapaAgrupado[llaveCoordenada],
-          descripcion: `${mapaAgrupado[llaveCoordenada].descripcion} | OTRA NECESIDAD: ${reporte.descripcion}`,
-          tipo_necesidad: mapaAgrupado[llaveCoordenada].tipo_necesidad === reporte.tipo_necesidad 
-            ? mapaAgrupado[llaveCoordenada].tipo_necesidad 
-            : 'Múltiples Necesidades'
+          descripcion: `${mapaAgrupado[llaveCoordenada].descripcion}\n\n⚠️ OTRA ALERTA EN ESTE LUGAR:\n${reporte.descripcion || 'Sin descripción'}`
         }
       } else {
-        mapaAgrupado[llaveCoordenada] = { ...reporte }
+        mapaAgrupado[llaveCoordenada] = { 
+          ...reporte,
+          latitud: latNum,
+          longitud: lngNum
+        }
       }
     })
 
@@ -117,34 +122,40 @@ export default function Page() {
 
   // Filtrar reportes para la visualización de la lista
   const reportesFiltrados = useMemo(() => {
+    if (!reportes) return []
     return reportes.filter((reporte) => {
-      if (filtroTipo && reporte.tipo_necesidad !== filtroTipo) return false
       if (filtroInfraestructura && reporte.categoria_infraestructura !== filtroInfraestructura) return false
       if (busqueda.trim() !== '') {
         const query = busqueda.toLowerCase()
         return (
-          reporte.descripcion?.toLowerCase().includes(query) ||
-          reporte.estado?.toLowerCase().includes(query) ||
-          reporte.municipio?.toLowerCase().includes(query) ||
-          reporte.direccion_texto?.toLowerCase().includes(query) ||
-          reporte.tipo_necesidad.toLowerCase().includes(query) ||
-          reporte.categoria_infraestructura.toLowerCase().includes(query)
+          (reporte.descripcion && reporte.descripcion.toLowerCase().includes(query)) ||
+          (reporte.estado && reporte.estado.toLowerCase().includes(query)) ||
+          (reporte.municipio && reporte.municipio.toLowerCase().includes(query)) ||
+          (reporte.direccion_texto && reporte.direccion_texto.toLowerCase().includes(query)) ||
+          (reporte.categoria_infraestructura && reporte.categoria_infraestructura.toLowerCase().includes(query))
         )
       }
       return true
     })
-  }, [reportes, filtroTipo, filtroInfraestructura, busqueda])
+  }, [reportes, filtroInfraestructura, busqueda])
 
-  // Manejador protegido ante cambios de viewport para evitar el error de carga
   const manejarSeleccionTarjeta = (reporte: Reporte) => {
-    setReporteSeleccionado(reporte)
+    // Validamos que contenga coordenadas numéricas válidas para prevenir errores visuales
+    const lat = Number(reporte.latitud)
+    const lng = Number(reporte.longitud)
+    if (isNaN(lat) || isNaN(lng)) return
+
+    setReporteSeleccionado({
+      ...reporte,
+      latitud: lat,
+      longitud: lng
+    })
     setVistaMobile('mapa')
     
-    // Ejecutar redibujado asíncrono para asegurar que el contenedor de Leaflet ya sea visible
     if (typeof window !== 'undefined') {
       setTimeout(() => {
         window.dispatchEvent(new Event('resize'))
-      }, 100)
+      }, 150)
     }
   }
 
@@ -184,7 +195,7 @@ export default function Page() {
       {/* Contenedor Principal Split */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
         
-        {/* Barra Lateral / Sidebar (Lista y Formulario) */}
+        {/* Barra Lateral / Sidebar */}
         <aside className={`
           w-full md:w-[380px] lg:w-[420px] bg-white border-r border-slate-200 flex flex-col shrink-0 overflow-hidden shadow-sm z-10
           ${vistaMobile === 'mapa' ? 'hidden md:flex' : 'flex'} 
@@ -201,7 +212,6 @@ export default function Page() {
               />
             ) : (
               <>
-                {/* TÍTULO RECONFIGURADO: Enorme, en mayúsculas y destacado */}
                 <div className="py-2 border-b border-slate-100">
                   <h2 className="text-4xl sm:text-5xl font-black text-slate-950 tracking-tighter leading-none block">
                     ¿DONDE PUEDO DONAR?
@@ -212,8 +222,8 @@ export default function Page() {
                 </div>
 
                 <FiltrosTipo
-                  filtroTipo={filtroTipo}
-                  setFiltroTipo={setFiltroTipo}
+                  filtroTipo=""
+                  setFiltroTipo={() => {}}
                   filtroInfraestructura={filtroInfraestructura}
                   setFiltroInfraestructura={setFiltroInfraestructura}
                   busqueda={busqueda}
@@ -223,7 +233,7 @@ export default function Page() {
                 {/* Lista de Tarjetas */}
                 <div className="space-y-3">
                   <div className="flex justify-between items-center text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
-                    <span>Casos Reportados</span>
+                    <span>Lugares Registrados</span>
                     <span className="text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-full text-xs">
                       {reportesFiltrados.length}
                     </span>
@@ -241,14 +251,14 @@ export default function Page() {
                   ) : (
                     <div className="text-center py-10 px-4 border border-dashed border-slate-200 rounded-xl bg-slate-50 space-y-2">
                       <HeartHandshake className="mx-auto text-slate-300" size={32} />
-                      <h4 className="text-sm font-bold text-slate-700">Sin reportes activos</h4>
+                      <h4 className="text-sm font-bold text-slate-700">Sin lugares activos</h4>
                     </div>
                   )}
                 </div>
 
-                {/* BOTONES DE ENLACES MOVIDOS AL FINAL DE LA LISTA */}
+                {/* Enlaces de Soporte */}
                 <div className="pt-4 border-t border-slate-100 space-y-2">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">Soporte y Enlaces de Emergencia</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">Soporte y Emergencias</p>
                   <div className="grid grid-cols-2 gap-3">
                     <a
                       href="https://redatudavenezuela.com"
@@ -290,29 +300,6 @@ export default function Page() {
             </div>
           )}
 
-          {/* DICCIONARIO / LEYENDA FLOTANTE DE COLORES EN EL MAPA */}
-          <div className="absolute bottom-4 left-4 z-[400] bg-white/95 backdrop-blur-sm p-3 rounded-xl shadow-xl border border-slate-200 max-w-[220px] text-slate-800 space-y-2 pointer-events-auto">
-            <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Significado de Alertas</h4>
-            <div className="space-y-1.5 text-xs">
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-blue-500 inline-block shrink-0"></span>
-                <span className="font-medium truncate text-slate-700">Maquinaria de Rescate</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-orange-500 inline-block shrink-0"></span>
-                <span className="font-medium truncate text-slate-700">Equipo de Rescatistas</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block shrink-0"></span>
-                <span className="font-medium truncate text-slate-700">Insumos y Medicamentos</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-purple-500 inline-block shrink-0"></span>
-                <span className="font-medium truncate text-slate-700">Múltiples Necesidades</span>
-              </div>
-            </div>
-          </div>
-
           <Mapa
             reportes={reportesAgrupadosParaMapa}
             reporteSeleccionado={reporteSeleccionado}
@@ -324,7 +311,7 @@ export default function Page() {
         </main>
       </div>
 
-      {/* BARRA DE NAVEGACIÓN INFERIOR (BOTTOM NAVIGATION) */}
+      {/* BARRA DE NAVEGACIÓN INFERIOR MÓVIL */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 flex items-center justify-around px-2 z-[500] shadow-xl">
         <button
           onClick={() => cambiarVistaMobile('lista')}
@@ -353,7 +340,7 @@ export default function Page() {
           }`}
         >
           <PlusCircle size={20} className={vistaMobile === 'reportar' ? 'stroke-[2.5] text-red-600' : 'stroke-[1.8]'} />
-          <span className="text-[10px] tracking-tight">Nuevo Reporte</span>
+          <span className="text-[10px] tracking-tight">Nuevo Registro</span>
         </button>
       </nav>
     </div>

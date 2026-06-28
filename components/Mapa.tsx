@@ -4,6 +4,15 @@ import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 're
 import { Reporte } from '@/types'
 import L from 'leaflet'
 
+/* ── Fix Leaflet icons en Next.js ────────────────────────────── */
+// Sin esto, Leaflet no encuentra sus PNGs y los markers salen en gris
+delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconUrl:       '/leaflet/marker-icon.png',
+  iconRetinaUrl: '/leaflet/marker-icon-2x.png',
+  shadowUrl:     '/leaflet/marker-shadow.png',
+})
+
 /* ── Config visual por categoría ─────────────────────────────── */
 const INFRA_CONFIG: Record<string, { color: string; emoji: string; label: string }> = {
   'Refugio':             { color: '#2563eb', emoji: '🏠', label: 'Refugio' },
@@ -171,6 +180,15 @@ function useMapHeight(navbarH: number, bottomNavH: number) {
   return height
 }
 
+/* ── Forzar recálculo de tamaño cuando cambia el contenedor ─── */
+function MapResizer({ mapHeight }: { mapHeight: string }) {
+  const map = useMap()
+  useEffect(() => {
+    setTimeout(() => map.invalidateSize(), 50)
+  }, [mapHeight, map])
+  return null
+}
+
 /* ── Props ───────────────────────────────────────────────────── */
 interface MapaProps {
   reportes: Reporte[]
@@ -194,7 +212,7 @@ export default function Mapa({
   const mapHeight = useMapHeight(56, 64)
 
   return (
-    <div style={{ width: '100%', height: mapHeight, position: 'relative' }}>
+    <div style={{ width: '100%', height: mapHeight, position: 'relative', minHeight: 200 }}>
 
       <style>{`
         @keyframes pulse-ping {
@@ -241,6 +259,7 @@ export default function Mapa({
           reporteSeleccionado={reporteSeleccionado}
           coordenadasSeleccionadas={coordenadasSeleccionadas}
         />
+        <MapResizer mapHeight={mapHeight} />
 
         {/* Marcadores */}
         {reportes

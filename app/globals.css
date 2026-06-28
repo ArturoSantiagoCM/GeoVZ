@@ -1,8 +1,23 @@
-@import "tailwindcss"
+@import "tailwindcss";
 
+/* ── Paleta GeoVZ ─────────────────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+
+  --brand-900: #0f172a;
+  --brand-800: #1e293b;
+  --brand-700: #334155;
+  --brand-accent: #3b82f6;
+  --brand-accent-light: #dbeafe;
+
+  /* Categorías */
+  --color-refugio:     #3b82f6;
+  --color-medico:      #ef4444;
+  --color-caida:       #78716c;
+  --color-peligro:     #f97316;
+  --color-vet:         #10b981;
+  --color-multiple:    #8b5cf6;
 }
 
 @theme inline {
@@ -12,15 +27,110 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* ── Modo oscuro ──────────────────────────────────────────────── */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0f172a;
+    --foreground: #f1f5f9;
   }
+}
+
+/* ── Base ─────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans, 'Inter', Arial, sans-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Leaflet: forzar z-index correcto ─────────────────────────── */
+.leaflet-container {
+  height: 100% !important;
+  width: 100% !important;
+  z-index: 0 !important;
+  font-family: inherit !important;
+  background: #e2e8f0 !important;
+}
+
+.leaflet-tile-pane { z-index: 1 !important; }
+.leaflet-overlay-pane { z-index: 2 !important; }
+.leaflet-marker-pane { z-index: 3 !important; }
+.leaflet-popup-pane { z-index: 4 !important; }
+.leaflet-top,
+.leaflet-bottom { z-index: 5 !important; }
+
+/* ── Popups de Leaflet ────────────────────────────────────────── */
+.leaflet-popup-content-wrapper {
+  border-radius: 12px !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.08) !important;
+  border: 1px solid #e2e8f0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+  min-width: 180px !important;
+}
+
+.leaflet-popup-tip-container {
+  margin-top: -1px !important;
+}
+
+/* ── Iconos de marcadores ─────────────────────────────────────── */
+.infra-marker-icon,
+.temp-marker-icon,
+.custom-marker-icon {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* ── Animación ping para marcador temporal ────────────────────── */
+@keyframes pulse-ping {
+  0%   { transform: scale(0.6); opacity: 0.8; }
+  100% { transform: scale(2.8); opacity: 0; }
+}
+
+@keyframes bounce-subtle {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-4px); }
+}
+
+/* ── Scrollbar personalizado ──────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ── Utilidades extra ─────────────────────────────────────────── */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }

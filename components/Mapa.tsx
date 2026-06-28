@@ -1,5 +1,5 @@
 'use client'
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet'
 import { Reporte } from '@/types'
 import L from 'leaflet'
@@ -13,7 +13,6 @@ const INFRA_CONFIG: Record<string, { color: string; emoji: string; label: string
   'Centro Veterinario':  { color: '#059669', emoji: '🐾', label: 'Centro Veterinario' },
 }
 
-/* ── Leyenda flotante ─────────────────────────────────────────── */
 const LEYENDA = [
   { color: '#2563eb', emoji: '🏠', label: 'Refugio' },
   { color: '#dc2626', emoji: '🏥', label: 'Centro Médico' },
@@ -22,12 +21,11 @@ const LEYENDA = [
   { color: '#059669', emoji: '🐾', label: 'Centro Veterinario' },
 ]
 
-/* ── Crear icono SVG por categoría ───────────────────────────── */
+/* ── Icono SVG por categoría ─────────────────────────────────── */
 const crearIconoInfraestructura = (categoria: string): L.DivIcon => {
   const cfg = INFRA_CONFIG[categoria] ?? { color: '#64748b', emoji: '📍', label: categoria }
   const c = cfg.color
 
-  // SVG interior según categoría
   const svgInterior: Record<string, string> = {
     'Refugio': `
       <polygon points="16,4 28,14 28,28 4,28" fill="${c}" stroke="white" stroke-width="1.2"/>
@@ -58,21 +56,14 @@ const crearIconoInfraestructura = (categoria: string): L.DivIcon => {
 
   const interior = svgInterior[categoria] ?? `<circle cx="16" cy="16" r="10" fill="${c}"/>`
 
-  const html = `
-    <div style="
-      filter: drop-shadow(0 3px 6px rgba(0,0,0,0.3));
-      width: 38px; height: 38px;
-      display: flex; align-items: center; justify-content: center;
-    ">
-      <svg width="38" height="38" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="16" cy="16" r="15" fill="white" stroke="${c}" stroke-width="2.5"/>
-        ${interior}
-      </svg>
-    </div>
-  `
-
   return L.divIcon({
-    html,
+    html: `
+      <div style="filter:drop-shadow(0 3px 6px rgba(0,0,0,0.28));width:38px;height:38px;display:flex;align-items:center;justify-content:center;">
+        <svg width="38" height="38" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="16" cy="16" r="15" fill="white" stroke="${c}" stroke-width="2.5"/>
+          ${interior}
+        </svg>
+      </div>`,
     className: 'infra-marker-icon',
     iconSize: [38, 38],
     iconAnchor: [19, 19],
@@ -80,32 +71,27 @@ const crearIconoInfraestructura = (categoria: string): L.DivIcon => {
   })
 }
 
-/* ── Icono temporal (nuevo reporte) ──────────────────────────── */
-const crearIconoTemporal = (): L.DivIcon => {
-  const html = `
-    <div style="position:relative; display:flex; align-items:center; justify-content:center; width:34px; height:44px;">
-      <div style="
-        position:absolute; width:22px; height:22px;
-        background:rgba(37,99,235,0.35); border-radius:50%;
-        animation: pulse-ping 1.5s ease-out infinite; top:3px; left:6px;
-      "></div>
-      <svg width="34" height="44" viewBox="0 0 34 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M17 1C8.163 1 1 8.163 1 17C1 29.25 17 43 17 43C17 43 33 29.25 33 17C33 8.163 25.837 1 17 1Z" fill="#2563eb" stroke="white" stroke-width="1.5"/>
-        <circle cx="17" cy="17" r="6" fill="white"/>
-        <circle cx="17" cy="17" r="3" fill="#2563eb"/>
-      </svg>
-    </div>
-  `
-  return L.divIcon({
-    html,
+/* ── Icono temporal ──────────────────────────────────────────── */
+const crearIconoTemporal = (): L.DivIcon =>
+  L.divIcon({
+    html: `
+      <div style="position:relative;display:flex;align-items:center;justify-content:center;width:34px;height:44px;">
+        <div style="position:absolute;width:22px;height:22px;background:rgba(37,99,235,0.3);border-radius:50%;
+                    animation:pulse-ping 1.5s ease-out infinite;top:3px;left:6px;"></div>
+        <svg width="34" height="44" viewBox="0 0 34 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M17 1C8.163 1 1 8.163 1 17C1 29.25 17 43 17 43C17 43 33 29.25 33 17C33 8.163 25.837 1 17 1Z"
+                fill="#2563eb" stroke="white" stroke-width="1.5"/>
+          <circle cx="17" cy="17" r="6" fill="white"/>
+          <circle cx="17" cy="17" r="3" fill="#2563eb"/>
+        </svg>
+      </div>`,
     className: 'temp-marker-icon',
     iconSize: [34, 44],
     iconAnchor: [17, 44],
     popupAnchor: [0, -46],
   })
-}
 
-/* ── Listener de clicks en mapa ──────────────────────────────── */
+/* ── Listener de clicks ──────────────────────────────────────── */
 function MapClickHandler({
   modoReporte,
   setCoordenadasSeleccionadas,
@@ -115,9 +101,7 @@ function MapClickHandler({
 }) {
   useMapEvents({
     click(e) {
-      if (modoReporte) {
-        setCoordenadasSeleccionadas({ lat: e.latlng.lat, lng: e.latlng.lng })
-      }
+      if (modoReporte) setCoordenadasSeleccionadas({ lat: e.latlng.lat, lng: e.latlng.lng })
     },
   })
   return null
@@ -135,9 +119,8 @@ function MapController({
 
   useEffect(() => {
     const r = reporteSeleccionado
-    if (r && typeof r.latitud === 'number' && typeof r.longitud === 'number'
-        && !isNaN(r.latitud) && !isNaN(r.longitud)) {
-      map.flyTo([r.latitud, r.longitud], 14, { animate: true, duration: 1.2 })
+    if (r && !isNaN(Number(r.latitud)) && !isNaN(Number(r.longitud))) {
+      map.flyTo([Number(r.latitud), Number(r.longitud)], 14, { animate: true, duration: 1.2 })
     }
   }, [reporteSeleccionado, map])
 
@@ -149,6 +132,43 @@ function MapController({
   }, [coordenadasSeleccionadas, map])
 
   return null
+}
+
+/* ── Hook: altura real del viewport en mobile ────────────────── */
+function useMapHeight(navbarH: number, bottomNavH: number) {
+  const [height, setHeight] = useState<string>('100%')
+
+  useEffect(() => {
+    const calcular = () => {
+      // dvh (dynamic viewport height) resuelve el bug de iOS Safari con la barra de URL
+      const dvhSoportado = CSS.supports('height', '1dvh')
+      if (dvhSoportado) {
+        // En mobile descontamos navbar + barra de nav inferior
+        const isMobile = window.innerWidth < 768
+        setHeight(isMobile
+          ? `calc(100dvh - ${navbarH + bottomNavH}px)`
+          : '100%')
+      } else {
+        // Fallback: usar window.innerHeight real
+        const isMobile = window.innerWidth < 768
+        setHeight(isMobile
+          ? `${window.innerHeight - navbarH - bottomNavH}px`
+          : '100%')
+      }
+    }
+
+    calcular()
+    window.addEventListener('resize', calcular)
+    // En iOS, orientationchange puede llegar antes que resize
+    window.addEventListener('orientationchange', () => setTimeout(calcular, 200))
+
+    return () => {
+      window.removeEventListener('resize', calcular)
+      window.removeEventListener('orientationchange', calcular)
+    }
+  }, [navbarH, bottomNavH])
+
+  return height
 }
 
 /* ── Props ───────────────────────────────────────────────────── */
@@ -170,10 +190,12 @@ export default function Mapa({
   setCoordenadasSeleccionadas,
   onMarkerClick,
 }: MapaProps) {
-  return (
-    <div className="w-full h-full relative">
+  // 56px navbar + 64px bottom nav mobile
+  const mapHeight = useMapHeight(56, 64)
 
-      {/* Estilos globales inline — garantiza que funcionen incluso sin CSS externo */}
+  return (
+    <div style={{ width: '100%', height: mapHeight, position: 'relative' }}>
+
       <style>{`
         @keyframes pulse-ping {
           0%   { transform: scale(0.5); opacity: 0.9; }
@@ -197,12 +219,13 @@ export default function Mapa({
           overflow: hidden !important;
         }
         .leaflet-popup-content { margin: 0 !important; }
+        ${modoReporte ? '.leaflet-container { cursor: crosshair !important; }' : ''}
       `}</style>
 
       <MapContainer
         center={[8.0, -66.0]}
         zoom={6}
-        style={{ height: '100%', width: '100%', zIndex: 0 }}
+        style={{ height: '100%', width: '100%' }}
         zoomControl={true}
       >
         <TileLayer
@@ -219,7 +242,7 @@ export default function Mapa({
           coordenadasSeleccionadas={coordenadasSeleccionadas}
         />
 
-        {/* Marcadores de reportes */}
+        {/* Marcadores */}
         {reportes
           .filter(r => !isNaN(Number(r.latitud)) && !isNaN(Number(r.longitud)))
           .map(reporte => {
@@ -233,13 +256,10 @@ export default function Mapa({
               >
                 <Popup>
                   <div style={{ fontFamily: 'inherit', minWidth: 180, maxWidth: 240 }}>
-                    {/* Header del popup */}
                     <div style={{ backgroundColor: cfg.color, padding: '10px 14px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontSize: 18 }}>{cfg.emoji}</span>
-                        <span style={{ color: 'white', fontWeight: 700, fontSize: 13 }}>
-                          {cfg.label}
-                        </span>
+                        <span style={{ color: 'white', fontWeight: 700, fontSize: 13 }}>{cfg.label}</span>
                       </div>
                       {(reporte.estado || reporte.municipio) && (
                         <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 2 }}>
@@ -247,8 +267,6 @@ export default function Mapa({
                         </p>
                       )}
                     </div>
-
-                    {/* Body del popup */}
                     <div style={{ padding: '10px 14px' }}>
                       {reporte.direccion_texto && (
                         <p style={{ color: '#64748b', fontSize: 11, marginBottom: 8, lineHeight: 1.4 }}>
@@ -270,8 +288,7 @@ export default function Mapa({
                 </Popup>
               </Marker>
             )
-          })
-        }
+          })}
 
         {/* Marcador temporal */}
         {modoReporte && coordenadasSeleccionadas && (
@@ -289,22 +306,16 @@ export default function Mapa({
         )}
       </MapContainer>
 
-      {/* ── Leyenda flotante ── */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 24,
-          right: 12,
-          zIndex: 400,
-          backgroundColor: 'rgba(255,255,255,0.97)',
-          backdropFilter: 'blur(8px)',
-          borderRadius: 14,
-          padding: '10px 14px',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-          border: '1px solid #e2e8f0',
-          pointerEvents: 'none',
-        }}
-      >
+      {/* Leyenda flotante */}
+      <div style={{
+        position: 'absolute', bottom: 16, right: 10, zIndex: 400,
+        backgroundColor: 'rgba(255,255,255,0.97)',
+        backdropFilter: 'blur(8px)',
+        borderRadius: 14, padding: '10px 14px',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+        border: '1px solid #e2e8f0',
+        pointerEvents: 'none',
+      }}>
         <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#94a3b8', marginBottom: 8 }}>
           Leyenda
         </p>
@@ -325,11 +336,6 @@ export default function Mapa({
           ))}
         </div>
       </div>
-
-      {/* ── Cursor crosshair en modo reporte ── */}
-      {modoReporte && (
-        <style>{`.leaflet-container { cursor: crosshair !important; }`}</style>
-      )}
     </div>
   )
 }

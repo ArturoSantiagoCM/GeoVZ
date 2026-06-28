@@ -1,7 +1,7 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
-import { MapPin, Calendar, Map, Loader2 } from 'lucide-react'
-import { Reporte, CategoriaInfraestructura } from '@/types'
+import { useRef, useState } from 'react'
+import { MapPin, Calendar, Map, Loader2, Check } from 'lucide-react'
+import { Reporte } from '@/types'
 import { supabase } from '@/lib/supabase'
 
 const CONFIG_INFRA: Record<string, { color: string; bg: string; border: string; emoji: string; label: string }> = {
@@ -25,8 +25,7 @@ export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado }: 
   const [texto, setTexto]         = useState(reporte.descripcion || '')
   const [guardando, setGuardando] = useState(false)
   const [guardado, setGuardado]   = useState(false)
-  const debounceRef               = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const primeraVez                = useRef(true)
+  const [error, setError]         = useState('')
 
   const formatearFecha = (f: string) => {
     try {
@@ -36,24 +35,23 @@ export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado }: 
     } catch { return f }
   }
 
-  // Autosave con debounce 800ms
-  useEffect(() => {
-    if (primeraVez.current) { primeraVez.current = false; return }
-    if (debounceRef.current) clearTimeout(debounceRef.current)
+  const guardar = async () => {
+    setGuardando(true)
+    setError('')
     setGuardado(false)
-    debounceRef.current = setTimeout(async () => {
-      setGuardando(true)
-      try {
-        await supabase.from('reportes').update({ descripcion: texto }).eq('id', reporte.id)
-        reporte.descripcion = texto
-        setGuardado(true)
-        setTimeout(() => setGuardado(false), 2000)
-      } finally {
-        setGuardando(false)
-      }
-    }, 800)
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
-  }, [texto])
+    const { error: err } = await supabase
+      .from('reportes')
+      .update({ descripcion: texto })
+      .eq('id', reporte.id)
+    if (err) {
+      setError('Error al guardar. Intenta de nuevo.')
+    } else {
+      reporte.descripcion = texto
+      setGuardado(true)
+      setTimeout(() => setGuardado(false), 2000)
+    }
+    setGuardando(false)
+  }
 
   return (
     <div
@@ -107,7 +105,7 @@ export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado }: 
           )}
         </div>
 
-        {/* Descripción siempre visible + autosave */}
+        {/* Descripción + botão OK */}
         <div
           className="rounded-xl border p-3 space-y-2"
           style={{ backgroundColor: cfg.bg, borderColor: cfg.border }}
@@ -117,7 +115,9 @@ export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado }: 
             <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Necesidades</p>
             {guardando && <Loader2 size={10} className="text-slate-400 animate-spin" />}
             {!guardando && guardado && <span className="text-[9px] text-green-500 font-bold">✓ Guardado</span>}
+            {!guardando && error && <span className="text-[9px] text-red-500 font-bold">{error}</span>}
           </div>
+
           <textarea
             value={texto}
             onChange={e => setTexto(e.target.value)}
@@ -127,9 +127,22 @@ export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado }: 
                        resize-none leading-relaxed transition"
             placeholder="Lista de necesidades..."
           />
+
+          {/* Botão OK — só aparece se o texto mudou */}
+          {texto !== (reporte.descripcion || '') && !guardando && (
+            <button
+              onClick={guardar}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold
+                         text-white transition active:scale-95"
+              style={{ backgroundColor: cfg.color }}
+            >
+              <Check size={11} />
+              OK — Guardar
+            </button>
+          )}
         </div>
 
-        {/* Botón Ver en mapa */}
+        {/* Botão Ver en mapa */}
         <button
           onClick={() => onSelect(reporte)}
           className="w-full flex items-center justify-center gap-1.5 text-xs font-bold py-2 rounded-xl transition"
@@ -138,6 +151,7 @@ export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado }: 
           <Map size={12} />
           Ver en mapa
         </button>
+
       </div>
     </div>
   )

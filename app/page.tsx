@@ -1,358 +1,274 @@
 'use client'
-
-import {
-  ExternalLink,
-  Map as MapIcon,
-  List as ListIcon,
-  PlusCircle,
-  HeartHandshake,
-  AlertCircle,
-} from 'lucide-react'
 import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Reporte } from '@/types'
-import dynamic from 'next/dynamic'
-import FiltrosTipo from '@/components/FiltrosTipo'
+import { AlertCircle, Loader2, Map, List, Plus, X } from 'lucide-react'
+
+// Importamos tus componentes modulares
+import Mapa from '@/components/Mapa'
 import TarjetaReporte from '@/components/TarjetaReporte'
+import FiltrosTipo from '@/components/FiltrosTipo'
 import FormularioReporte from '@/components/FormularioReporte'
-import Image from 'next/image'
 
-/* ── Leaflet solo en el cliente (no SSR) ─────────────────────── */
-const Mapa = dynamic(() => import('@/components/Mapa'), {
-  ssr: false,
-  loading: () => (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-slate-100">
-      <div className="w-10 h-10 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
-      <p className="text-sm font-medium text-slate-500 animate-pulse">Cargando mapa…</p>
-    </div>
-  ),
-})
+export default function Home() {
+  // ── Estados de Datos ────────────────────────────────────────────
+  const [reportes, setReportes] = useState<Reporte[]>([])
+  const [cargando, setCargando] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-type MobileView = 'mapa' | 'lista' | 'reportar'
+  // ── Estados de Interfaz / UX ────────────────────────────────────
+  const [reporteSeleccionado, setReporteSeleccionado] = useState<Reporte | null>(null)
+  const [modoReporte, setModoReporte] = useState(false)
+  const [coordenadasSeleccionadas, setCoordenadasSeleccionadas] = useState<{ lat: number; lng: number } | null>(null)
+  
+  // SOLUCIÓN 1: La pantalla principal al abrir la app ahora es la LISTA
+  const [vistaMobile, setVistaMobile] = useState<'mapa' | 'lista'>('lista')
 
-export default function Page() {
-  const [reportes, setReportes]                                   = useState<Reporte[]>([])
-  const [cargando, setCargando]                                   = useState(true)
-  const [vistaMobile, setVistaMobile]                             = useState<MobileView>('lista')
-  const [filtroTipo, setFiltroTipo]                               = useState('')
-  const [filtroInfraestructura, setFiltroInfraestructura]         = useState('')
-  const [busqueda, setBusqueda]                                   = useState('')
-  const [reporteSeleccionado, setReporteSeleccionado]             = useState<Reporte | null>(null)
-  const [modoReporte, setModoReporte]                             = useState(false)
-  const [coordenadasSeleccionadas, setCoordenadasSeleccionadas]   = useState<{ lat: number; lng: number } | null>(null)
+  // ── Estados de Filtrado ─────────────────────────────────────────
+  const [busqueda, setBusqueda] = useState('')
+  const [filtroInfraestructura, setFiltroInfraestructura] = useState('')
+  const [filtroTipo, setFiltroTipo] = useState('')
 
-  /* ── Cambio de vista mobile ── */
-  const cambiarVistaMobile = (vista: MobileView) => {
-    setVistaMobile(vista)
-    setModoReporte(vista === 'reportar')
-    if (vista !== 'reportar') setCoordenadasSeleccionadas(null)
+  // SOLUCIÓN 2: Forzar a Leaflet a recalcular su tamaño al cambiar de pestaña en el celular
+  useEffect(() => {
+    if (vistaMobile === 'mapa' && typeof window !== 'undefined') {
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'))
+      }, 100)
+    }
+  }, [vistaMobile])
+
+  // ── Cargar datos desde Supabase ─────────────────────────────────
+  const cargarReportes = async () => {
+    try {
+      setCargando(true)
+      setError(null)
+      const { data, error: sbError } = await supabase
+        .from('reportes')
+        .select('*')
+        .order('creado_en', { ascending: false })
+
+      if (sbError) throw sbError
+      setReportes(data || [])
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al cargar los reportes')
+    } finally {
+      setCargando(false)
+    }
   }
 
-  /* ── Carga inicial + realtime ── */
   useEffect(() => {
-    const cargar = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('reportes')
-          .select('*')
-          .order('creado_en', { ascending: false })
-        if (!error && data) setReportes(data as Reporte[])
-      } catch (e) { console.error(e) }
-      finally { setCargando(false) }
-    }
-    cargar()
+    cargarReportes()
 
-    const channel = supabase
-      .channel('reportes-nuevos')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reportes' }, payload => {
-        setReportes(prev => [payload.new as Reporte, ...prev])
-      })
+    const canal = supabase
+      .channel('cambios-reportes')
+      .on(
+        'postgres_changes',
+        { event: '*', scheme: 'public', table: 'reportes' },
+        () => { cargarReportes() }
+      )
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    return () => {
+      supabase.removeChannel(canal)
+    }
   }, [])
 
-  /* ── Agrupación de coordenadas duplicadas ── */
-  const reportesAgrupados = useMemo(() => {
-    if (!reportes.length) return []
-    const mapa: Record<string, Reporte> = {}
-    reportes.forEach(r => {
-      const lat = Number(r.latitud), lng = Number(r.longitud)
-      if (isNaN(lat) || isNaN(lng)) return
-      const key = `${lat.toFixed(5)}_${lng.toFixed(5)}`
-      if (mapa[key]) {
-        mapa[key] = {
-          ...mapa[key],
-          descripcion: `${mapa[key].descripcion}\n\n⚠️ OTRA NECESIDAD:\n${r.descripcion || ''}`,
-          tipo_necesidad: 'Múltiples Necesidades',
-        }
-      } else {
-        mapa[key] = { ...r, latitud: lat, longitud: lng }
-      }
-    })
-    return Object.values(mapa)
-  }, [reportes])
-
-  /* ── Filtros ── */
+  // ── Filtrado en Memoria ─────────────────────────────────────────
   const reportesFiltrados = useMemo(() => {
-    return reportes.filter(r => {
-      if (filtroTipo && r.tipo_necesidad !== filtroTipo) return false
-      if (filtroInfraestructura && r.categoria_infraestructura !== filtroInfraestructura) return false
-      if (busqueda.trim()) {
-        const q = busqueda.toLowerCase()
-        return [r.descripcion, r.estado, r.municipio, r.direccion_texto, r.tipo_necesidad, r.categoria_infraestructura]
-          .some(v => v?.toLowerCase().includes(q))
-      }
-      return true
-    })
-  }, [reportes, filtroTipo, filtroInfraestructura, busqueda])
+    return reportes.filter((r) => {
+      const cumpleInfra = filtroInfraestructura === '' || r.categoria_infraestructura === filtroInfraestructura
+      const query = busqueda.toLowerCase().trim()
+      const cumpleBusqueda =
+        query === '' ||
+        r.direccion_texto?.toLowerCase().includes(query) ||
+        r.descripcion?.toLowerCase().includes(query) ||
+        r.estado?.toLowerCase().includes(query) ||
+        r.municipio?.toLowerCase().includes(query)
 
-  /* ── Selección desde lista ── */
-  const seleccionarTarjeta = (reporte: Reporte) => {
-    const lat = Number(reporte.latitud), lng = Number(reporte.longitud)
-    if (isNaN(lat) || isNaN(lng)) return
-    setReporteSeleccionado({ ...reporte, latitud: lat, longitud: lng })
-    setVistaMobile('mapa')
+      return cumpleInfra && cumpleBusqueda
+    })
+  }, [reportes, filtroInfraestructura, busqueda])
+
+  // ── Manejadores de Eventos ──────────────────────────────────────
+  const manejarSeleccionarReporte = (reporte: Reporte) => {
+    setReporteSeleccionado(reporte)
+    setModoReporte(false)
+    setVistaMobile('mapa') // Al tocar la tarjeta, abre el mapa directamente
   }
 
-  /* ── Loader ── */
-  if (cargando) {
-    return (
-      <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-50 gap-4">
-        <div className="relative flex items-center justify-center">
-          <div className="w-14 h-14 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
-          <div className="absolute animate-pulse">
-            <Image src="/venezuela.png" alt="Cargando…" width={24} height={24} className="object-contain" />
-          </div>
-        </div>
-        <p className="text-sm font-semibold text-slate-500 animate-pulse">Conectando con GeoVZ…</p>
-      </div>
-    )
+  const activarModoReporte = () => {
+    setModoReporte(true)
+    setReporteSeleccionado(null)
+    setCoordenadasSeleccionadas(null)
+    setVistaMobile('mapa') // El tab dedicado te manda al mapa para marcar el punto
+  }
+
+  const desactivarModoReporte = () => {
+    setModoReporte(false)
+    setCoordenadasSeleccionadas(null)
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-slate-100 pb-16 md:pb-0">
-
-      {/* ══ NAVBAR ══════════════════════════════════════════════ */}
-      <header className="h-14 bg-slate-900 flex items-center justify-between px-4 shrink-0 shadow-lg z-20">
-        <div className="flex items-center gap-3">
-          <Image src="/venezuela.png" alt="GeoVZ" width={28} height={28} className="object-contain shrink-0" priority />
+    <div className="flex flex-col h-screen bg-slate-100 overflow-hidden text-slate-800">
+      {/* Navbar */}
+      <header className="h-14 bg-white border-b border-slate-200/80 px-4 flex items-center justify-between shrink-0 z-10 shadow-sm">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-200">
+            <span className="font-black text-sm tracking-tighter">🚨</span>
+          </div>
           <div>
-            <h1 className="text-sm font-black tracking-tight text-white flex items-center gap-2 leading-none">
-              GeoVZ
-              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/25 text-blue-400 border border-blue-500/30 font-bold tracking-wider">
-                VENEZUELA
-              </span>
-            </h1>
-            <p className="text-[10px] text-slate-400 mt-0.5">Plataforma Ciudadana de Ayuda</p>
+            <h1 className="text-sm font-bold text-slate-900 leading-none">AsistenciaVzla</h1>
+            <p className="text-[10px] text-slate-400 font-medium mt-0.5">Reportes Comunitarios en Tiempo Real</p>
           </div>
         </div>
 
-        {/* Contador en navbar */}
-        <div className="flex items-center gap-2 text-xs text-slate-400">
-          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          <span className="font-medium text-slate-300">{reportes.length} registros</span>
-        </div>
+        {!modoReporte ? (
+          <button
+            onClick={activarModoReporte}
+            className="hidden md:flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm"
+          >
+            <Plus size={14} /> Registrar Lugar
+          </button>
+        ) : (
+          <button
+            onClick={desactivarModoReporte}
+            className="hidden md:flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded-xl text-xs font-bold transition"
+          >
+            <X size={14} /> Cancelar Registro
+          </button>
+        )}
       </header>
 
-      {/* ══ CONTENIDO SPLIT ══════════════════════════════════════ */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+      {/* Cuerpo Split */}
+      <div className="flex flex-1 relative overflow-hidden">
+        
+        {/* COLUMNA IZQUIERDA: Lista */}
+        <aside
+          className={`
+            w-full md:w-[380px] lg:w-[420px] bg-white border-r border-slate-200/60 
+            flex flex-col h-full shrink-0 z-20 md:static absolute inset-y-0 left-0 transition-transform duration-300
+            ${vistaMobile === 'lista' ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+          `}
+        >
+          <div className="p-4 border-b border-slate-100 shrink-0 bg-slate-50/50 space-y-3">
+            <FiltrosTipo
+              filtroTipo={filtroTipo}
+              setFiltroTipo={setFiltroTipo}
+              filtroInfraestructura={filtroInfraestructura}
+              setFiltroInfraestructura={setFiltroInfraestructura}
+              busqueda={busqueda}
+              setBusqueda={setBusqueda}
+            />
+          </div>
 
-        {/* ── PANEL LATERAL ── */}
-        <aside className={`
-          w-full md:w-[380px] lg:w-[420px] bg-white border-r border-slate-200
-          flex flex-col shrink-0 overflow-hidden z-10
-          ${vistaMobile === 'mapa' ? 'hidden md:flex' : 'flex'}
-          ${vistaMobile === 'lista' || vistaMobile === 'reportar' ? 'h-full' : 'h-0 md:h-full'}
-        `}>
-
-          <div className="flex-1 overflow-y-auto overscroll-contain">
-
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
             {modoReporte ? (
-              <div className="p-4">
-                <FormularioReporte
-                  coordenadasSeleccionadas={coordenadasSeleccionadas}
-                  setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
-                  onCancel={() => cambiarVistaMobile('lista')}
-                  onSuccess={() => cambiarVistaMobile('mapa')}
-                />
-              </div>
+              <FormularioReporte
+                coordenadasSeleccionadas={coordenadasSeleccionadas}
+                setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
+                onSuccess={() => {
+                  desactivarModoReporte()
+                  setVistaMobile('lista')
+                }}
+                onCancel={desactivarModoReporte}
+              />
             ) : (
               <>
-                {/* ── Encabezado ── */}
-                <div className="px-4 pt-5 pb-4 border-b border-slate-100">
-                  <h2 className="text-3xl font-black text-slate-900 tracking-tighter leading-none">
-                    ¿DÓNDE<br/>DONAR?
-                  </h2>
-                  <p className="text-xs text-slate-500 mt-2 font-medium">
-                    Necesidades críticas en tiempo real · Venezuela
+                <div className="flex items-center justify-between px-1">
+                  <p className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
+                    Lugares Encontrados ({reportesFiltrados.length})
                   </p>
                 </div>
 
-                {/* ── Filtros ── */}
-                <div className="px-4 py-4 border-b border-slate-100">
-                  <FiltrosTipo
-                    filtroTipo={filtroTipo}
-                    setFiltroTipo={setFiltroTipo}
-                    filtroInfraestructura={filtroInfraestructura}
-                    setFiltroInfraestructura={setFiltroInfraestructura}
-                    busqueda={busqueda}
-                    setBusqueda={setBusqueda}
-                  />
-                </div>
-
-                {/* ── Lista ── */}
-                <div className="px-4 py-4 space-y-3 pb-6">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      Casos registrados
-                    </span>
-                    <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full">
-                      {reportesFiltrados.length}
-                    </span>
+                {cargando ? (
+                  <div className="flex flex-col items-center justify-center py-12 gap-2 text-slate-400">
+                    <Loader2 size={24} className="animate-spin text-blue-500" />
+                    <p className="text-xs font-medium">Cargando reportes activos...</p>
                   </div>
-
-                  {reportesFiltrados.length > 0 ? (
-                    reportesFiltrados.map(reporte => (
+                ) : error ? (
+                  <div className="p-4 bg-red-50 border border-red-100 rounded-xl flex items-start gap-2.5 text-red-700 text-xs">
+                    <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold">Error de conexión</p>
+                      <p className="mt-0.5 text-red-600/90">{error}</p>
+                    </div>
+                  </div>
+                ) : reportesFiltrados.length === 0 ? (
+                  <div className="text-center py-12 px-4 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                    <p className="text-sm font-semibold text-slate-500">No hay resultados</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {reportesFiltrados.map((reporte) => (
                       <TarjetaReporte
                         key={reporte.id}
                         reporte={reporte}
+                        onSelect={manejarSeleccionarReporte}
                         estaSeleccionado={reporteSeleccionado?.id === reporte.id}
-                        onSelect={seleccionarTarjeta}
                       />
-                    ))
-                  ) : (
-                    <div className="text-center py-12 border border-dashed border-slate-200 rounded-2xl bg-slate-50">
-                      <HeartHandshake size={32} className="mx-auto text-slate-300 mb-3" />
-                      <p className="text-sm font-bold text-slate-600">Sin registros activos</p>
-                      <p className="text-xs text-slate-400 mt-1">
-                        {busqueda || filtroInfraestructura
-                          ? 'Prueba cambiando los filtros'
-                          : 'Aún no hay reportes registrados'}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* ── Links de emergencia ── */}
-                <div className="px-4 pb-6 space-y-2 border-t border-slate-100 pt-4">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    Recursos de Ayuda
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <a
-                      href="https://redatudavenezuela.com"
-                      target="_blank" rel="noopener noreferrer"
-                      className="flex items-center justify-between p-3 bg-red-50 hover:bg-red-100
-                                 border border-red-200 rounded-xl text-[11px] font-bold text-red-700 transition"
-                    >
-                      <span>Red Ayuda</span>
-                      <ExternalLink size={11} className="text-red-400 shrink-0" />
-                    </a>
-                    <a
-                      href="https://hospitalesenvenezuela.com"
-                      target="_blank" rel="noopener noreferrer"
-                      className="flex items-center justify-between p-3 bg-blue-50 hover:bg-blue-100
-                                 border border-blue-200 rounded-xl text-[11px] font-bold text-blue-700 transition"
-                    >
-                      <span>Hospitales</span>
-                      <ExternalLink size={11} className="text-blue-400 shrink-0" />
-                    </a>
+                    ))}
                   </div>
-                </div>
+                )}
               </>
             )}
           </div>
         </aside>
 
-        {/* ── MAPA ── */}
-        <main className={`
-          flex-1 relative
-          ${vistaMobile === 'mapa' ? 'flex' : 'hidden md:flex'}
-          flex-col
-        `}
-          style={{ minHeight: 0 }}
-        >
-          {/* Banner modo reporte */}
-          {modoReporte && !coordenadasSeleccionadas && (
-            <div
-              className="absolute top-4 left-1/2 -translate-x-1/2 z-[450] flex items-center gap-2
-                         bg-blue-600 text-white px-4 py-2.5 rounded-xl shadow-lg border border-blue-500/40
-                         w-[90%] max-w-sm"
-              style={{ animation: 'bounce-subtle 2s ease-in-out infinite' }}
-            >
-              <AlertCircle size={16} className="shrink-0" />
-              <p className="text-xs font-bold leading-tight">
-                Toca el mapa para marcar la ubicación exacta del lugar
-              </p>
+        {/* COLUMNA DERECHA: Mapa */}
+        <main className="flex-1 h-full bg-slate-200 relative">
+          {modoReporte && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[500] pointer-events-none w-[90%] sm:w-auto">
+              <div className="bg-blue-600 border border-blue-500 text-white font-bold text-xs py-2 px-4 rounded-xl shadow-lg flex items-center justify-center gap-2 animate-bounce">
+                <span>📍</span>
+                <span>Toca cualquier punto del mapa para fijar el reporte</span>
+              </div>
             </div>
           )}
 
-          <div className="flex-1" style={{ minHeight: 0 }}>
-            <Mapa
-              reportes={reportesAgrupados}
-              reporteSeleccionado={reporteSeleccionado}
-              modoReporte={modoReporte}
-              coordenadasSeleccionadas={coordenadasSeleccionadas}
-              setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
-              onMarkerClick={r => setReporteSeleccionado(r)}
-            />
-          </div>
+          <Mapa
+            reportes={reportesFiltrados}
+            reporteSeleccionado={reporteSeleccionado}
+            modoReporte={modoReporte}
+            coordenadasSeleccionadas={coordenadasSeleccionadas}
+            setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
+            onMarkerClick={(reporte) => setReporteSeleccionado(reporte)}
+          />
         </main>
       </div>
 
-      {/* ══ NAVEGACIÓN MOBILE ════════════════════════════════════ */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200
-                      flex items-center justify-around z-[500] shadow-xl">
-        <NavBtn
-          active={vistaMobile === 'lista'}
-          onClick={() => cambiarVistaMobile('lista')}
-          icon={<ListIcon size={20} />}
-          label="Ver Lista"
-        />
-        <NavBtn
-          active={vistaMobile === 'mapa'}
-          onClick={() => cambiarVistaMobile('mapa')}
-          icon={<MapIcon size={20} />}
-          label="Ver Mapa"
-        />
-        {/* Botón principal (FAB-style) */}
+      {/* MENÚ INFERIOR (MOBILE) */}
+      <footer className="h-16 bg-white border-t border-slate-200 flex md:hidden shrink-0 z-30 shadow-inner justify-around items-center px-2">
         <button
-          onClick={() => cambiarVistaMobile('reportar')}
-          className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-colors
-            ${vistaMobile === 'reportar' ? 'text-blue-600' : 'text-slate-500'}`}
+          onClick={() => setVistaMobile('lista')}
+          className={`flex flex-col items-center justify-center gap-1 w-20 h-full transition-colors ${
+            vistaMobile === 'lista' ? 'text-blue-600 font-bold' : 'text-slate-400 font-medium'
+          }`}
         >
-          <PlusCircle
-            size={24}
-            className={vistaMobile === 'reportar' ? 'text-blue-600' : ''}
-            strokeWidth={vistaMobile === 'reportar' ? 2.5 : 1.8}
-          />
-          <span className={`text-[10px] font-bold ${vistaMobile === 'reportar' ? 'text-blue-600' : 'text-slate-500'}`}>
-            Registrar
-          </span>
+          <List size={18} />
+          <span className="text-[10px]">Ver Lista</span>
         </button>
-      </nav>
-    </div>
-  )
-}
 
-/* ── Botón de nav reutilizable ── */
-function NavBtn({
-  active, onClick, icon, label,
-}: {
-  active: boolean
-  onClick: () => void
-  icon: React.ReactNode
-  label: string
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-colors
-        ${active ? 'text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
-    >
-      <span className={active ? '[&>svg]:stroke-[2.5]' : '[&>svg]:stroke-[1.8]'}>{icon}</span>
-      <span className={`text-[10px] font-bold`}>{label}</span>
-    </button>
+        {/* Tab dedicado a registrar */}
+        <button
+          onClick={modoReporte ? desactivarModoReporte : activarModoReporte}
+          className={`w-11 h-11 rounded-full flex items-center justify-center shadow-md transition-transform active:scale-95 text-white ${
+            modoReporte ? 'bg-slate-500 shadow-slate-200' : 'bg-blue-600 shadow-blue-200'
+          }`}
+        >
+          {modoReporte ? <X size={20} /> : <Plus size={20} />}
+        </button>
+
+        <button
+          onClick={() => setVistaMobile('mapa')}
+          className={`flex flex-col items-center justify-center gap-1 w-20 h-full transition-colors ${
+            vistaMobile === 'mapa' ? 'text-blue-600 font-bold' : 'text-slate-400 font-medium'
+          }`}
+        >
+          <Map size={18} />
+          <span className="text-[10px]">Ver Mapa</span>
+        </button>
+      </footer>
+    </div>
   )
 }

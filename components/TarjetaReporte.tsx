@@ -1,18 +1,23 @@
 'use client'
-import { MapPin, Phone, Calendar, ChevronRight } from 'lucide-react'
-import { Reporte } from '@/types'
+import { useState } from 'react'
+import { MapPin, Calendar, ChevronDown, ChevronUp, Pencil, Check, X, Loader2 } from 'lucide-react'
+import { Reporte, CategoriaInfraestructura } from '@/types'
+import { supabase } from '@/lib/supabase'
 
-// Colores correspondientes a cada tipo de necesidad
-const coloresPorTipo: Record<string, string> = {
-  'Agua': '#3b82f6',              // Azul
-  'Comida': '#f97316',            // Naranja
-  'Ropa': '#eab308',              // Amarillo
-  'Medicamentos': '#a855f7',      // Púrpura
-  'Equipo de Rescate': '#ef4444',  // Rojo
-  'Equipo Médico': '#db2777',     // Rosa
-  'Equipo Veterinario': '#10b981',// Verde
-  'Maquinaria de Rescate': '#4b5563', // Gris
-  'Objetos para Rescate': '#0d9488'  // Turquesa
+const coloresPorInfraestructura: Record<string, string> = {
+  'Refugio':             '#3b82f6',
+  'Centro Médico':       '#ef4444',
+  'Estructura_caida':    '#78716c',
+  'Peligro Estructural': '#f97316',
+  'Centro Veterinario':  '#10b981',
+}
+
+const emojiPorInfraestructura: Record<string, string> = {
+  'Refugio':             '🏠',
+  'Centro Médico':       '🏥',
+  'Estructura_caida':    '🧱',
+  'Peligro Estructural': '⚠️',
+  'Centro Veterinario':  '🐾',
 }
 
 interface TarjetaReporteProps {
@@ -21,111 +26,174 @@ interface TarjetaReporteProps {
   estaSeleccionado: boolean
 }
 
-export default function TarjetaReporte({
-  reporte,
-  onSelect,
-  estaSeleccionado
-}: TarjetaReporteProps) {
-  const color = coloresPorTipo[reporte.tipo_necesidad] || '#ef4444'
+export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado }: TarjetaReporteProps) {
+  const color = coloresPorInfraestructura[reporte.categoria_infraestructura] || '#64748b'
+  const emoji = emojiPorInfraestructura[reporte.categoria_infraestructura] || '📍'
 
-  // Formateador de fecha simple
+  const [expandido, setExpandido] = useState(false)
+  const [editando, setEditando] = useState(false)
+  const [textoEdicion, setTextoEdicion] = useState(reporte.descripcion || '')
+  const [guardando, setGuardando] = useState(false)
+  const [errorGuardar, setErrorGuardar] = useState<string | null>(null)
+
   const formatearFecha = (fechaString: string) => {
     try {
-      const fecha = new Date(fechaString)
-      return fecha.toLocaleDateString('es-VE', {
-        day: '2-digit',
-        month: 'short',
-        hour: '2-digit',
-        minute: '2-digit'
+      return new Date(fechaString).toLocaleDateString('es-VE', {
+        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
       })
-    } catch {
-      return fechaString
+    } catch { return fechaString }
+  }
+
+  const guardarDescripcion = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setGuardando(true)
+    setErrorGuardar(null)
+    try {
+      const { error } = await supabase
+        .from('reportes')
+        .update({ descripcion: textoEdicion })
+        .eq('id', reporte.id)
+      if (error) throw error
+      reporte.descripcion = textoEdicion
+      setEditando(false)
+    } catch (err: unknown) {
+      setErrorGuardar(err instanceof Error ? err.message : 'Error al guardar')
+    } finally {
+      setGuardando(false)
     }
+  }
+
+  const cancelarEdicion = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setTextoEdicion(reporte.descripcion || '')
+    setEditando(false)
+    setErrorGuardar(null)
+  }
+
+  const toggleExpandir = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setExpandido(prev => !prev)
+  }
+
+  const iniciarEdicion = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setExpandido(true)
+    setEditando(true)
   }
 
   return (
     <div
       onClick={() => onSelect(reporte)}
-      className={`group relative p-4 rounded-xl border text-left cursor-pointer transition-all duration-200 select-none ${
+      className={`group relative rounded-xl border cursor-pointer transition-all duration-200 select-none overflow-hidden ${
         estaSeleccionado
-          ? 'bg-slate-50 border-blue-500 shadow-md ring-1 ring-blue-500/20'
-          : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm hover:-translate-y-0.5'
+          ? 'border-blue-400 shadow-md ring-1 ring-blue-400/20'
+          : 'border-slate-200 hover:border-slate-300 hover:shadow-sm'
       }`}
     >
-      {/* Indicador de color lateral */}
-      <div
-        className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-xl transition-all"
-        style={{ backgroundColor: color }}
-      />
+      {/* Barra de color lateral */}
+      <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-xl" style={{ backgroundColor: color }} />
 
-      <div className="pl-2 space-y-2">
-        {/* Encabezado: Necesidad e Infraestructura */}
-        <div className="flex justify-between items-start gap-2">
-          <div>
-            <h3
-              className="text-sm font-bold tracking-tight uppercase"
+      <div className="pl-3 pr-4 py-3.5 space-y-2.5">
+        {/* ── Badge tipo de local ── */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xl leading-none">{emoji}</span>
+            <span
+              className="text-sm font-black tracking-tight uppercase"
               style={{ color }}
             >
-              {reporte.tipo_necesidad}
-            </h3>
-            <span className="inline-block px-2 py-0.5 mt-1 bg-slate-100 rounded text-[10px] font-semibold text-slate-600 uppercase">
               {reporte.categoria_infraestructura.replace('_', ' ')}
             </span>
           </div>
-          <ChevronRight
-            size={16}
-            className={`text-slate-300 group-hover:text-slate-500 transition-transform ${
-              estaSeleccionado ? 'text-blue-500 translate-x-1' : ''
-            }`}
-          />
-        </div>
-
-        {/* Descripción */}
-        {reporte.descripcion && (
-          <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed italic">
-            "{reporte.descripcion}"
-          </p>
-        )}
-
-        {/* Información de Ubicación */}
-       <div className="space-y-1 pt-1.5 border-t border-slate-100 text-[11px] text-slate-500">
-          <div className="flex items-center gap-1.5">
-            <MapPin size={12} className="text-slate-400 shrink-0" />
-            <span className="truncate">
-              {reporte.estado ? `${reporte.estado}, ` : ''}
-              {reporte.municipio ? `${reporte.municipio}` : ''}
-            </span>
-          </div>
-          {reporte.direccion_texto && (
-            <div className="pl-4 text-[10px] text-slate-400 truncate">
-              {reporte.direccion_texto}
-            </div>
-          )}
-          <div className="flex items-center gap-1.5">
-            <MapPin size={12} className="text-slate-400 shrink-0" />
-            <span className="truncate">
-              {reporte.latitud ? `${reporte.latitud}, ` : ''}
-              {reporte.longitud ? `${reporte.longitud}` : ''}
-            </span>
-          </div>
-        </div>
-
-        {/* Info inferior: Contacto y Fecha */}
-        <div className="flex justify-between items-center text-[10px] text-slate-400 pt-1">
-          {reporte.contacto ? (
-            <div className="flex items-center gap-1 text-slate-500">
-              <Phone size={10} className="text-slate-400 shrink-0" />
-              <span className="font-medium truncate max-w-[120px]">{reporte.contacto}</span>
-            </div>
-          ) : (
-            <div />
-          )}
-
-          <div className="flex items-center gap-1">
-            <Calendar size={10} className="text-slate-400 shrink-0" />
+          <div className="flex items-center gap-1 text-[10px] text-slate-400">
+            <Calendar size={10} className="shrink-0" />
             <span>{formatearFecha(reporte.creado_en)}</span>
           </div>
         </div>
+
+        {/* ── Separador ── */}
+        <div className="h-px bg-slate-100" />
+
+        {/* ── Dirección centrada ── */}
+        <div className="text-center space-y-0.5 px-2">
+          {(reporte.estado || reporte.municipio) && (
+            <p className="text-xs font-bold text-slate-700">
+              {[reporte.estado, reporte.municipio].filter(Boolean).join(' — ')}
+            </p>
+          )}
+          {reporte.direccion_texto && (
+            <p className="text-[11px] text-slate-500 leading-tight line-clamp-2">
+              {reporte.direccion_texto}
+            </p>
+          )}
+          {!reporte.estado && !reporte.municipio && !reporte.direccion_texto && (
+            <div className="flex items-center justify-center gap-1 text-[11px] text-slate-400">
+              <MapPin size={11} />
+              <span>{Number(reporte.latitud).toFixed(4)}, {Number(reporte.longitud).toFixed(4)}</span>
+            </div>
+          )}
+        </div>
+
+        {/* ── Botón expandir ── */}
+        <button
+          onClick={toggleExpandir}
+          className="w-full flex items-center justify-center gap-1.5 text-[11px] font-semibold text-slate-400 hover:text-blue-600 transition py-0.5 rounded-lg hover:bg-blue-50"
+        >
+          {expandido ? (
+            <><ChevronUp size={12} /> Ocultar necesidades</>
+          ) : (
+            <><ChevronDown size={12} /> Ver lista de necesidades</>
+          )}
+        </button>
+
+        {/* ── Panel expandible ── */}
+        {expandido && (
+          <div className="bg-slate-50 rounded-xl border border-slate-200 p-3 space-y-2" onClick={e => e.stopPropagation()}>
+            {editando ? (
+              <>
+                <textarea
+                  value={textoEdicion}
+                  onChange={e => setTextoEdicion(e.target.value)}
+                  rows={5}
+                  className="w-full text-xs text-slate-700 bg-white border border-blue-300 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400/30 resize-none leading-relaxed"
+                  placeholder="Lista de necesidades del lugar..."
+                />
+                {errorGuardar && <p className="text-[10px] text-red-500 font-medium">{errorGuardar}</p>}
+                <div className="flex gap-2">
+                  <button
+                    onClick={cancelarEdicion}
+                    className="flex-1 flex items-center justify-center gap-1 text-[11px] font-bold border border-slate-200 hover:bg-slate-100 text-slate-600 py-1.5 rounded-lg transition"
+                  >
+                    <X size={11} /> Cancelar
+                  </button>
+                  <button
+                    onClick={guardarDescripcion}
+                    disabled={guardando}
+                    className="flex-1 flex items-center justify-center gap-1 text-[11px] font-bold bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white py-1.5 rounded-lg transition"
+                  >
+                    {guardando ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+                    {guardando ? 'Guardando...' : 'Guardar'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-xs text-slate-700 leading-relaxed whitespace-pre-line min-h-[40px]">
+                  {reporte.descripcion
+                    ? reporte.descripcion
+                    : <span className="text-slate-400 italic">Sin descripción de necesidades.</span>
+                  }
+                </div>
+                <button
+                  onClick={iniciarEdicion}
+                  className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 hover:text-blue-600 transition py-1 px-2 rounded-lg hover:bg-blue-50"
+                >
+                  <Pencil size={10} /> Editar lista
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

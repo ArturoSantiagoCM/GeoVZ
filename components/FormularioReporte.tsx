@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -9,10 +9,25 @@ import { MapPin, AlertTriangle, Check, Loader2, X, Search } from 'lucide-react'
 
 const schemaReporte = z.object({
   categoria_infraestructura: z.string().min(1, { message: 'Selecciona un tipo de local' }),
-  descripcion: z.string().min(1, { message: 'Describe al menos una necesidad del lugar' }).max(800)
+  descripcion: z.string().min(1, { message: 'Describe al menos una necesidad' }).max(800),
 })
 
 type FormInputs = z.infer<typeof schemaReporte>
+
+interface Sugerencia {
+  place_id: number
+  display_name: string
+  lat: string
+  lon: string
+  address: {
+    state?: string
+    region?: string
+    county?: string
+    city?: string
+    town?: string
+    municipality?: string
+  }
+}
 
 interface FormularioReporteProps {
   coordenadasSeleccionadas: { lat: number; lng: number } | null
@@ -21,37 +36,113 @@ interface FormularioReporteProps {
   onCancel: () => void
 }
 
-const categoriasInfraestructura: { valor: CategoriaInfraestructura; etiqueta: string; emoji: string }[] = [
-  { valor: 'Refugio',             etiqueta: 'Refugio',                 emoji: '🏠' },
-  { valor: 'Centro Médico',       etiqueta: 'Centro Médico',           emoji: '🏥' },
-  { valor: 'Estructura_caida',    etiqueta: 'Estructura caída',        emoji: '🧱' },
-  { valor: 'Peligro Estructural', etiqueta: 'Peligro Estructural',     emoji: '⚠️' },
-  { valor: 'Centro Veterinario',  etiqueta: 'Centro Veterinario',      emoji: '🐾' },
+const CATEGORIAS: { valor: CategoriaInfraestructura; etiqueta: string; emoji: string }[] = [
+  { valor: 'Refugio',             etiqueta: 'Refugio',              emoji: '🏠' },
+  { valor: 'Centro Médico',       etiqueta: 'Centro Médico',        emoji: '🏥' },
+  { valor: 'Estructura_caida',    etiqueta: 'Estructura caída',     emoji: '🧱' },
+  { valor: 'Peligro Estructural', etiqueta: 'Peligro Estructural',  emoji: '⚠️' },
+  { valor: 'Centro Veterinario',  etiqueta: 'Centro Veterinario',   emoji: '🐾' },
 ]
 
 export default function FormularioReporte({
   coordenadasSeleccionadas,
   setCoordenadasSeleccionadas,
   onSuccess,
-  onCancel
+  onCancel,
 }: FormularioReporteProps) {
-  const [enviando, setEnviando] = useState(false)
-  const [errorEnvio, setErrorEnvio] = useState<string | null>(null)
-  const [textoBusqueda, setTextoBusqueda] = useState('')
-  const [buscandoDireccion, setBuscandoDireccion] = useState(false)
-  const [errorBusqueda, setErrorBusqueda] = useState<string | null>(null)
-  const [cargandoDireccion, setCargandoDireccion] = useState(false)
-  const [direccionResuelta, setDireccionResuelta] = useState<{
+  const [enviando, setEnviando]           = useState(false)
+  const [errorEnvio, setErrorEnvio]       = useState<string | null>(null)
+
+  // ── Autocompletado ──────────────────────────────────────────────
+  const [textoBusqueda, setTextoBusqueda]         = useState('')
+  const [sugerencias, setSugerencias]             = useState<Sugerencia[]>([])
+  const [buscando, setBuscando]                   = useState(false)
+  const [dropdownAbierto, setDropdownAbierto]     = useState(false)
+  const debounceRef                               = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const wrapperRef                                = useRef<HTMLDivElement>(null)
+
+  // ── Dirección resuelta ──────────────────────────────────────────
+  const [cargandoDireccion, setCargandoDireccion]   = useState(false)
+  const [direccionResuelta, setDireccionResuelta]   = useState<{
     direccion: string; estado: string; municipio: string
   } | null>(null)
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<FormInputs>({
-    resolver: zodResolver(schemaReporte)
+    resolver: zodResolver(schemaReporte),
   })
 
-  // Geocodificación inversa al seleccionar en el mapa
+  // ── Cerrar dropdown al hacer click fuera ────────────────────────
+  useEffect(() => {
+    const handleClickFuera = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setDropdownAbierto(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickFuera)
+    return () => document.removeEventListener('mousedown', handleClickFuera)
+  }, [])
+
+  // ── Debounce: buscar sugerencias mientras escribe ───────────────
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+
+    const query = textoBusqueda.trim()
+
+    if (query.length < 3) {
+      setSugerencias([])
+      setDropdownAbierto(false)
+      return
+    }
+
+    debounceRef.current = setTimeout(async () => {
+      setBuscando(true)
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=5&countrycodes=ve`,
+          { headers: { 'Accept-Language': 'es' } }
+        )
+        const data: Sugerencia[] = await res.json()
+        setSugerencias(data)
+        setDropdownAbierto(data.length > 0)
+      } catch {
+        setSugerencias([])
+      } finally {
+        setBuscando(false)
+      }
+    }, 400) // 400ms debounce
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [textoBusqueda])
+
+  // ── Al seleccionar una sugerencia ───────────────────────────────
+  const seleccionarSugerencia = (s: Sugerencia) => {
+    const lat = parseFloat(s.lat)
+    const lng = parseFloat(s.lon)
+    const a = s.address
+
+    // Tomar solo la primera parte del display_name para el campo de texto
+    const nombreCorto = s.display_name.split(',').slice(0, 3).join(',').trim()
+    setTextoBusqueda(nombreCorto)
+
+    setCoordenadasSeleccionadas({ lat, lng })
+    setDireccionResuelta({
+      direccion: s.display_name,
+      estado: a.state || a.region || '',
+      municipio: a.county || a.city || a.town || a.municipality || '',
+    })
+    setSugerencias([])
+    setDropdownAbierto(false)
+  }
+
+  // ── Geocodificación inversa al tocar el mapa ────────────────────
   useEffect(() => {
     if (!coordenadasSeleccionadas) { setDireccionResuelta(null); return }
+
+    // Si ya tenemos dirección (seleccionada del dropdown), no re-geocodificar
+    if (direccionResuelta) return
+
     const geocodificar = async () => {
       setCargandoDireccion(true)
       try {
@@ -63,49 +154,42 @@ export default function FormularioReporte({
         const data = await res.json()
         if (data?.address) {
           const a = data.address
+          const nombreCorto = data.display_name.split(',').slice(0, 3).join(',').trim()
+          setTextoBusqueda(nombreCorto)
           setDireccionResuelta({
-            direccion: data.display_name || 'Ubicación seleccionada',
+            direccion: data.display_name,
             estado: a.state || a.region || '',
-            municipio: a.county || a.city || a.town || a.municipality || ''
+            municipio: a.county || a.city || a.town || a.municipality || '',
           })
         } else {
           setDireccionResuelta({
-            direccion: `Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`,
-            estado: '', municipio: ''
+            direccion: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+            estado: '', municipio: '',
           })
         }
       } catch {
         setDireccionResuelta({
-          direccion: `Lat: ${coordenadasSeleccionadas.lat.toFixed(5)}, Lng: ${coordenadasSeleccionadas.lng.toFixed(5)}`,
-          estado: '', municipio: ''
+          direccion: `${coordenadasSeleccionadas.lat.toFixed(5)}, ${coordenadasSeleccionadas.lng.toFixed(5)}`,
+          estado: '', municipio: '',
         })
-      } finally { setCargandoDireccion(false) }
+      } finally {
+        setCargandoDireccion(false)
+      }
     }
     geocodificar()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coordenadasSeleccionadas])
 
-  // Geocodificación directa: texto → coordenadas
-  const manejarBusquedaDireccion = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!textoBusqueda.trim()) return
-    setBuscandoDireccion(true)
-    setErrorBusqueda(null)
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(textoBusqueda)}&format=json&addressdetails=1&limit=1&countrycodes=ve`,
-        { headers: { 'Accept-Language': 'es' } }
-      )
-      const data = await res.json()
-      if (data?.length > 0) {
-        setCoordenadasSeleccionadas({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) })
-      } else {
-        setErrorBusqueda('No se encontró en Venezuela. Intenta: "Altamira, Caracas" o "Maracay".')
-      }
-    } catch {
-      setErrorBusqueda('Error de conexión. Inténtalo de nuevo.')
-    } finally { setBuscandoDireccion(false) }
+  // ── Limpiar ubicación ───────────────────────────────────────────
+  const limpiarUbicacion = () => {
+    setTextoBusqueda('')
+    setSugerencias([])
+    setDropdownAbierto(false)
+    setDireccionResuelta(null)
+    setCoordenadasSeleccionadas(null)
   }
 
+  // ── Envío del formulario ────────────────────────────────────────
   const onSubmit = async (data: FormInputs) => {
     if (!coordenadasSeleccionadas) {
       setErrorEnvio('Busca o selecciona una ubicación en el mapa primero.')
@@ -114,137 +198,251 @@ export default function FormularioReporte({
     setEnviando(true); setErrorEnvio(null)
     try {
       const { error } = await supabase.from('reportes').insert({
-        latitud: coordenadasSeleccionadas.lat,
-        longitud: coordenadasSeleccionadas.lng,
-        tipo_necesidad: 'Múltiples Necesidades',
+        latitud:                  coordenadasSeleccionadas.lat,
+        longitud:                 coordenadasSeleccionadas.lng,
+        tipo_necesidad:           'Múltiples Necesidades',
         categoria_infraestructura: data.categoria_infraestructura as CategoriaInfraestructura,
-        descripcion: data.descripcion,
-        contacto: null,
-        direccion_texto: direccionResuelta?.direccion || 'Ubicación seleccionada',
-        estado: direccionResuelta?.estado || null,
-        municipio: direccionResuelta?.municipio || null,
-        atendido: false,
-        verificado: false
+        descripcion:              data.descripcion,
+        contacto:                 null,
+        direccion_texto:          direccionResuelta?.direccion || 'Ubicación seleccionada',
+        estado:                   direccionResuelta?.estado || null,
+        municipio:                direccionResuelta?.municipio || null,
+        atendido:                 false,
+        verificado:               false,
       })
       if (error) throw error
-      reset(); setTextoBusqueda(''); onSuccess()
+      reset()
+      setTextoBusqueda('')
+      setDireccionResuelta(null)
+      onSuccess()
     } catch (err: unknown) {
       setErrorEnvio(err instanceof Error ? err.message : 'Error al guardar el reporte.')
-    } finally { setEnviando(false) }
+    } finally {
+      setEnviando(false)
+    }
   }
 
   return (
-    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-md space-y-5">
-      <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-        <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-          <AlertTriangle size={18} className="text-amber-500" />
-          Registrar Lugar con Necesidades
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm space-y-5 overflow-hidden">
+
+      {/* Header */}
+      <div className="flex justify-between items-center px-5 pt-5 pb-4 border-b border-slate-100">
+        <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+          <AlertTriangle size={16} className="text-amber-500 shrink-0" />
+          Registrar lugar con necesidades
         </h2>
-        <button onClick={onCancel} className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-50 rounded-lg transition">
-          <X size={16} />
+        <button
+          onClick={onCancel}
+          className="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-slate-100 rounded-lg transition"
+        >
+          <X size={15} />
         </button>
       </div>
 
-      {/* ── PASO 1: Buscar Dirección ── */}
-      <div className="space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Paso 1 — Ubicación del lugar</p>
-        <form onSubmit={manejarBusquedaDireccion} className="flex gap-2">
-          <input
-            type="text"
-            value={textoBusqueda}
-            onChange={(e) => setTextoBusqueda(e.target.value)}
-            placeholder="Ej: Altamira, Caracas..."
-            className="flex-1 pl-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700 transition"
-          />
-          <button
-            type="submit"
-            disabled={buscandoDireccion || !textoBusqueda.trim()}
-            className="bg-slate-800 hover:bg-slate-900 disabled:bg-slate-300 text-white px-3 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shrink-0"
-          >
-            {buscandoDireccion ? <Loader2 size={11} className="animate-spin" /> : <Search size={11} />}
-            Buscar
-          </button>
-        </form>
-        {errorBusqueda && <span className="text-[10px] text-red-500 font-medium block">{errorBusqueda}</span>}
+      <div className="px-5 pb-5 space-y-5">
 
-        {/* Resultado */}
-        <div className={`rounded-xl p-3 border text-[11px] transition-all ${coordenadasSeleccionadas ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-slate-200'}`}>
-          <div className="flex items-start gap-2">
-            <MapPin size={14} className={coordenadasSeleccionadas ? 'text-blue-500 mt-0.5 shrink-0' : 'text-slate-400 mt-0.5 shrink-0'} />
-            <div>
-              {coordenadasSeleccionadas ? (
-                cargandoDireccion ? (
-                  <div className="flex items-center gap-1.5 text-slate-500"><Loader2 size={11} className="animate-spin" /> Buscando dirección...</div>
-                ) : (
-                  <>
-                    <span className="font-bold text-slate-800 block">{direccionResuelta?.estado} — {direccionResuelta?.municipio}</span>
-                    <span className="text-slate-500 line-clamp-2">{direccionResuelta?.direccion}</span>
-                  </>
-                )
+        {/* ── PASO 1: Ubicación con autocompletado ── */}
+        <div className="space-y-2">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+            <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-black flex items-center justify-center">1</span>
+            Ubicación del lugar
+          </p>
+
+          {/* Input con autocompletado */}
+          <div ref={wrapperRef} className="relative">
+            <div className="relative flex items-center">
+              <Search size={14} className="absolute left-3 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                value={textoBusqueda}
+                onChange={e => {
+                  setTextoBusqueda(e.target.value)
+                  // Si edita manualmente, limpiar coords
+                  if (coordenadasSeleccionadas) {
+                    setCoordenadasSeleccionadas(null)
+                    setDireccionResuelta(null)
+                  }
+                }}
+                onFocus={() => sugerencias.length > 0 && setDropdownAbierto(true)}
+                placeholder="Ej: Altamira, Caracas · Las Mercedes · Maracay…"
+                className="w-full pl-9 pr-9 py-2.5 text-sm bg-white border border-slate-200 rounded-xl
+                           focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500
+                           text-slate-700 placeholder:text-slate-400 transition"
+              />
+              {/* Indicador: buscando o limpiar */}
+              <div className="absolute right-3">
+                {buscando ? (
+                  <Loader2 size={14} className="text-blue-500 animate-spin" />
+                ) : textoBusqueda ? (
+                  <button
+                    type="button"
+                    onClick={limpiarUbicacion}
+                    className="text-slate-400 hover:text-slate-600 transition"
+                  >
+                    <X size={14} />
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            {/* Dropdown de sugerencias */}
+            {dropdownAbierto && sugerencias.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-[600] overflow-hidden">
+                {sugerencias.map((s, i) => {
+                  const partes = s.display_name.split(',')
+                  const nombre = partes.slice(0, 2).join(',').trim()
+                  const detalle = partes.slice(2, 4).join(',').trim()
+                  return (
+                    <button
+                      key={s.place_id}
+                      type="button"
+                      onMouseDown={e => { e.preventDefault(); seleccionarSugerencia(s) }}
+                      className={`w-full flex items-start gap-3 px-3 py-2.5 text-left hover:bg-blue-50 transition
+                        ${i < sugerencias.length - 1 ? 'border-b border-slate-100' : ''}`}
+                    >
+                      <MapPin size={14} className="text-blue-500 shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-slate-800 truncate">{nombre}</p>
+                        {detalle && (
+                          <p className="text-[10px] text-slate-400 truncate">{detalle}</p>
+                        )}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Sin resultados */}
+            {dropdownAbierto && !buscando && sugerencias.length === 0 && textoBusqueda.length >= 3 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-[600] px-4 py-3">
+                <p className="text-xs text-slate-500 text-center">
+                  Sin resultados en Venezuela para <strong>"{textoBusqueda}"</strong>
+                </p>
+              </div>
+            )}
+          </div>
+
+          <p className="text-[10px] text-slate-400 flex items-center gap-1">
+            <span>o</span>
+            <span className="font-medium text-blue-600">toca directamente en el mapa</span>
+            <span>para marcar la ubicación</span>
+          </p>
+
+          {/* Chip de ubicación confirmada */}
+          {coordenadasSeleccionadas && (
+            <div className={`
+              flex items-start gap-2 px-3 py-2.5 rounded-xl border text-[11px]
+              ${cargandoDireccion ? 'bg-slate-50 border-slate-200' : 'bg-blue-50 border-blue-200'}
+            `}>
+              <MapPin size={13} className={`shrink-0 mt-0.5 ${cargandoDireccion ? 'text-slate-400' : 'text-blue-500'}`} />
+              {cargandoDireccion ? (
+                <div className="flex items-center gap-1.5 text-slate-500">
+                  <Loader2 size={11} className="animate-spin" />
+                  Obteniendo dirección…
+                </div>
               ) : (
-                <span className="text-amber-600 font-medium animate-pulse">
-                  ⚠️ Busca la dirección arriba o toca el mapa para fijar la ubicación
-                </span>
+                <div className="min-w-0">
+                  <p className="font-bold text-slate-800">
+                    {[direccionResuelta?.estado, direccionResuelta?.municipio].filter(Boolean).join(' — ') || 'Ubicación seleccionada'}
+                  </p>
+                  <p className="text-slate-500 line-clamp-2 mt-0.5">{direccionResuelta?.direccion}</p>
+                </div>
               )}
             </div>
-          </div>
+          )}
+
+          {/* Estado vacío */}
+          {!coordenadasSeleccionadas && (
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-amber-200 bg-amber-50 text-[11px] text-amber-700 font-medium">
+              <span>⚠️</span>
+              <span>Busca una dirección arriba o toca el mapa</span>
+            </div>
+          )}
         </div>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+
+          {/* ── PASO 2: Tipo de local ── */}
+          <div className="space-y-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+              <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-black flex items-center justify-center">2</span>
+              Tipo de local
+            </p>
+            <div className="grid grid-cols-1 gap-2">
+              {CATEGORIAS.map(cat => (
+                <label
+                  key={cat.valor}
+                  className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 cursor-pointer
+                             hover:border-blue-300 hover:bg-blue-50 transition-colors
+                             has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50"
+                >
+                  <input
+                    type="radio"
+                    value={cat.valor}
+                    {...register('categoria_infraestructura')}
+                    className="accent-blue-600 w-3.5 h-3.5"
+                  />
+                  <span className="text-lg leading-none">{cat.emoji}</span>
+                  <span className="text-sm font-semibold text-slate-700">{cat.etiqueta}</span>
+                </label>
+              ))}
+            </div>
+            {errors.categoria_infraestructura && (
+              <p className="text-[10px] text-red-500 font-medium">{errors.categoria_infraestructura.message}</p>
+            )}
+          </div>
+
+          {/* ── PASO 3: Descripción ── */}
+          <div className="space-y-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+              <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-black flex items-center justify-center">3</span>
+              Lista de necesidades
+            </p>
+            <textarea
+              {...register('descripcion')}
+              placeholder={`Qué se necesita en este lugar:\n\n- Agua potable\n- Medicamentos para hipertensión\n- Ropa de niños talla 4-8\n- Voluntarios de rescate`}
+              rows={5}
+              className={`w-full bg-white border rounded-xl px-3 py-2.5 text-xs text-slate-700 leading-relaxed
+                          focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500
+                          transition resize-none ${errors.descripcion ? 'border-red-300' : 'border-slate-200'}`}
+            />
+            {errors.descripcion && (
+              <p className="text-[10px] text-red-500 font-medium">{errors.descripcion.message}</p>
+            )}
+          </div>
+
+          {errorEnvio && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-600 font-medium">
+              {errorEnvio}
+            </div>
+          )}
+
+          {/* Botones */}
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="flex-1 border border-slate-200 hover:bg-slate-50 text-slate-700
+                         font-bold py-2.5 rounded-xl text-xs transition"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={enviando || !coordenadasSeleccionadas}
+              className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300
+                         text-white font-bold py-2.5 rounded-xl text-xs transition
+                         flex items-center justify-center gap-1.5"
+            >
+              {enviando
+                ? <><Loader2 size={12} className="animate-spin" />Guardando…</>
+                : <><Check size={12} />Guardar</>
+              }
+            </button>
+          </div>
+        </form>
       </div>
-
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {/* ── PASO 2: Tipo de Local ── */}
-        <div className="space-y-2">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Paso 2 — Tipo de Local</p>
-          <div className="grid grid-cols-1 gap-2">
-            {categoriasInfraestructura.map(cat => (
-              <label key={cat.valor} className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
-                <input
-                  type="radio"
-                  value={cat.valor}
-                  {...register('categoria_infraestructura')}
-                  className="accent-blue-600"
-                />
-                <span className="text-lg">{cat.emoji}</span>
-                <span className="text-sm font-semibold text-slate-700">{cat.etiqueta}</span>
-              </label>
-            ))}
-          </div>
-          {errors.categoria_infraestructura && (
-            <span className="text-[10px] text-red-500 font-medium block">{errors.categoria_infraestructura.message}</span>
-          )}
-        </div>
-
-        {/* ── PASO 3: Descripción libre ── */}
-        <div className="space-y-2">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Paso 3 — Lista de Necesidades</p>
-          <textarea
-            {...register('descripcion')}
-            placeholder={`Escribe qué se necesita en este lugar. Puedes listar varias cosas:\n\n- Agua potable\n- Medicamentos para hipertensión\n- Ropa de niños talla 4-8\n- 3 voluntarios de rescate`}
-            rows={6}
-            className={`w-full bg-white border rounded-lg px-3 py-2.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition resize-none leading-relaxed ${errors.descripcion ? 'border-red-400' : 'border-slate-200'}`}
-          />
-          {errors.descripcion && (
-            <span className="text-[10px] text-red-500 font-medium block">{errors.descripcion.message}</span>
-          )}
-        </div>
-
-        {errorEnvio && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-2.5 text-xs text-red-600 font-medium">{errorEnvio}</div>
-        )}
-
-        <div className="flex gap-2 pt-1">
-          <button type="button" onClick={onCancel} className="w-1/2 border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold py-2.5 rounded-xl text-xs transition">
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            disabled={enviando || !coordenadasSeleccionadas}
-            className="w-1/2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-1.5"
-          >
-            {enviando ? <><Loader2 size={12} className="animate-spin" />Guardando...</> : <><Check size={12} />Guardar</>}
-          </button>
-        </div>
-      </form>
     </div>
   )
 }

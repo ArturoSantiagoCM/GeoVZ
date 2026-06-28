@@ -5,12 +5,11 @@ import { Reporte } from '@/types'
 import L from 'leaflet'
 
 /* ── Fix Leaflet icons en Next.js ────────────────────────────── */
-// Sin esto, Leaflet no encuentra sus PNGs y los markers salen en gris
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl
 L.Icon.Default.mergeOptions({
-  iconUrl:       '/leaflet/marker-icon.png',
-  iconRetinaUrl: '/leaflet/marker-icon-2x.png',
-  shadowUrl:     '/leaflet/marker-shadow.png',
+  iconUrl:       'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  shadowUrl:     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 })
 
 /* ── Config visual por categoría ─────────────────────────────── */
@@ -67,16 +66,16 @@ const crearIconoInfraestructura = (categoria: string): L.DivIcon => {
 
   return L.divIcon({
     html: `
-      <div style="filter:drop-shadow(0 3px 6px rgba(0,0,0,0.28));width:38px;height:38px;display:flex;align-items:center;justify-content:center;">
-        <svg width="38" height="38" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <div style="filter:drop-shadow(0 3px 6px rgba(0,0,0,0.28));width:44px;height:44px;display:flex;align-items:center;justify-content:center;">
+        <svg width="44" height="44" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <circle cx="16" cy="16" r="15" fill="white" stroke="${c}" stroke-width="2.5"/>
           ${interior}
         </svg>
       </div>`,
     className: 'infra-marker-icon',
-    iconSize: [38, 38],
-    iconAnchor: [19, 19],
-    popupAnchor: [0, -22],
+    iconSize: [44, 44],
+    iconAnchor: [22, 22],
+    popupAnchor: [0, -24],
   })
 }
 
@@ -116,15 +115,28 @@ function MapClickHandler({
   return null
 }
 
-/* ── Controlador de cámara ───────────────────────────────────── */
+/* ── Controlador de cámara + invalidateSize al montar ────────── */
 function MapController({
   reporteSeleccionado,
   coordenadasSeleccionadas,
+  visible,
 }: {
   reporteSeleccionado: Reporte | null
   coordenadasSeleccionadas: { lat: number; lng: number } | null
+  visible: boolean
 }) {
   const map = useMap()
+
+  // Cada vez que el mapa se vuelve visible, forzar recálculo
+  useEffect(() => {
+    if (visible) {
+      // Múltiples delays para cubrir animaciones CSS y iOS
+      const t1 = setTimeout(() => map.invalidateSize({ animate: false }), 50)
+      const t2 = setTimeout(() => map.invalidateSize({ animate: false }), 200)
+      const t3 = setTimeout(() => map.invalidateSize({ animate: false }), 500)
+      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
+    }
+  }, [visible, map])
 
   useEffect(() => {
     const r = reporteSeleccionado
@@ -143,52 +155,6 @@ function MapController({
   return null
 }
 
-/* ── Hook: altura real del viewport en mobile ────────────────── */
-function useMapHeight(navbarH: number, bottomNavH: number) {
-  const [height, setHeight] = useState<string>('100%')
-
-  useEffect(() => {
-    const calcular = () => {
-      // dvh (dynamic viewport height) resuelve el bug de iOS Safari con la barra de URL
-      const dvhSoportado = CSS.supports('height', '1dvh')
-      if (dvhSoportado) {
-        // En mobile descontamos navbar + barra de nav inferior
-        const isMobile = window.innerWidth < 768
-        setHeight(isMobile
-          ? `calc(100dvh - ${navbarH + bottomNavH}px)`
-          : '100%')
-      } else {
-        // Fallback: usar window.innerHeight real
-        const isMobile = window.innerWidth < 768
-        setHeight(isMobile
-          ? `${window.innerHeight - navbarH - bottomNavH}px`
-          : '100%')
-      }
-    }
-
-    calcular()
-    window.addEventListener('resize', calcular)
-    // En iOS, orientationchange puede llegar antes que resize
-    window.addEventListener('orientationchange', () => setTimeout(calcular, 200))
-
-    return () => {
-      window.removeEventListener('resize', calcular)
-      window.removeEventListener('orientationchange', calcular)
-    }
-  }, [navbarH, bottomNavH])
-
-  return height
-}
-
-/* ── Forzar recálculo de tamaño cuando cambia el contenedor ─── */
-function MapResizer({ mapHeight }: { mapHeight: string }) {
-  const map = useMap()
-  useEffect(() => {
-    setTimeout(() => map.invalidateSize(), 50)
-  }, [mapHeight, map])
-  return null
-}
-
 /* ── Props ───────────────────────────────────────────────────── */
 interface MapaProps {
   reportes: Reporte[]
@@ -197,6 +163,7 @@ interface MapaProps {
   coordenadasSeleccionadas: { lat: number; lng: number } | null
   setCoordenadasSeleccionadas: (c: { lat: number; lng: number } | null) => void
   onMarkerClick: (reporte: Reporte) => void
+  visible: boolean  // ← NUEVO: indica si el mapa está visible en pantalla
 }
 
 /* ── Componente principal ────────────────────────────────────── */
@@ -207,12 +174,11 @@ export default function Mapa({
   coordenadasSeleccionadas,
   setCoordenadasSeleccionadas,
   onMarkerClick,
+  visible,
 }: MapaProps) {
-  // 56px navbar + 64px bottom nav mobile
-  const mapHeight = useMapHeight(56, 64)
-
   return (
-    <div style={{ width: '100%', height: mapHeight, position: 'relative', minHeight: 200 }}>
+    // Siempre ocupa 100% del padre — la visibilidad la controla page.tsx con CSS
+    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
 
       <style>{`
         @keyframes pulse-ping {
@@ -225,18 +191,28 @@ export default function Mapa({
           border: none !important;
           box-shadow: none !important;
         }
-        .leaflet-container {
-          font-family: inherit;
-          background: #e2e8f0;
-        }
         .leaflet-popup-content-wrapper {
-          border-radius: 12px !important;
-          box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important;
+          border-radius: 14px !important;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.18) !important;
           border: 1px solid #e2e8f0 !important;
           padding: 0 !important;
           overflow: hidden !important;
         }
-        .leaflet-popup-content { margin: 0 !important; }
+        .leaflet-popup-content { margin: 0 !important; min-width: 200px !important; }
+        .leaflet-popup-close-button {
+          color: white !important;
+          font-size: 18px !important;
+          padding: 8px 10px !important;
+          top: 2px !important;
+          right: 2px !important;
+        }
+        /* Botones de zoom más grandes para dedos */
+        .leaflet-control-zoom a {
+          width: 36px !important;
+          height: 36px !important;
+          line-height: 36px !important;
+          font-size: 18px !important;
+        }
         ${modoReporte ? '.leaflet-container { cursor: crosshair !important; }' : ''}
       `}</style>
 
@@ -245,10 +221,20 @@ export default function Mapa({
         zoom={6}
         style={{ height: '100%', width: '100%' }}
         zoomControl={true}
+        // Opciones optimizadas para touch
+        tap={true}
+        touchZoom={true}
+        doubleClickZoom={true}
+        scrollWheelZoom={true}
+        dragging={true}
       >
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          // Más tiles en caché para mobile con conexión lenta
+          keepBuffer={4}
+          updateWhenIdle={false}
+          updateWhenZooming={false}
         />
 
         <MapClickHandler
@@ -258,8 +244,8 @@ export default function Mapa({
         <MapController
           reporteSeleccionado={reporteSeleccionado}
           coordenadasSeleccionadas={coordenadasSeleccionadas}
+          visible={visible}
         />
-        <MapResizer mapHeight={mapHeight} />
 
         {/* Marcadores */}
         {reportes
@@ -273,31 +259,36 @@ export default function Mapa({
                 icon={crearIconoInfraestructura(reporte.categoria_infraestructura)}
                 eventHandlers={{ click: () => onMarkerClick(reporte) }}
               >
-                <Popup>
-                  <div style={{ fontFamily: 'inherit', minWidth: 180, maxWidth: 240 }}>
-                    <div style={{ backgroundColor: cfg.color, padding: '10px 14px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 18 }}>{cfg.emoji}</span>
-                        <span style={{ color: 'white', fontWeight: 700, fontSize: 13 }}>{cfg.label}</span>
+                <Popup maxWidth={280} minWidth={220}>
+                  <div style={{ fontFamily: 'inherit' }}>
+                    {/* Header colorido */}
+                    <div style={{ backgroundColor: cfg.color, padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 22 }}>{cfg.emoji}</span>
+                        <div>
+                          <span style={{ color: 'white', fontWeight: 800, fontSize: 14, display: 'block' }}>{cfg.label}</span>
+                          {(reporte.estado || reporte.municipio) && (
+                            <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11 }}>
+                              {[reporte.estado, reporte.municipio].filter(Boolean).join(' — ')}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      {(reporte.estado || reporte.municipio) && (
-                        <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 2 }}>
-                          {[reporte.estado, reporte.municipio].filter(Boolean).join(' — ')}
-                        </p>
-                      )}
                     </div>
-                    <div style={{ padding: '10px 14px' }}>
+                    {/* Cuerpo */}
+                    <div style={{ padding: '12px 16px' }}>
                       {reporte.direccion_texto && (
-                        <p style={{ color: '#64748b', fontSize: 11, marginBottom: 8, lineHeight: 1.4 }}>
-                          📍 {reporte.direccion_texto}
+                        <p style={{ color: '#64748b', fontSize: 12, marginBottom: 10, lineHeight: 1.5, display: 'flex', gap: 4 }}>
+                          <span>📍</span>
+                          <span>{reporte.direccion_texto}</span>
                         </p>
                       )}
                       {reporte.descripcion && (
                         <div>
-                          <p style={{ color: '#94a3b8', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+                          <p style={{ color: '#94a3b8', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
                             Necesidades
                           </p>
-                          <p style={{ color: '#1e293b', fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+                          <p style={{ color: '#1e293b', fontSize: 13, lineHeight: 1.7, whiteSpace: 'pre-line', maxHeight: 180, overflowY: 'auto' }}>
                             {reporte.descripcion}
                           </p>
                         </div>
@@ -316,39 +307,39 @@ export default function Mapa({
             icon={crearIconoTemporal()}
           >
             <Popup>
-              <div style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'inherit' }}>
-                <p style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>📍 Ubicación seleccionada</p>
-                <p style={{ color: '#64748b', fontSize: 11, marginTop: 3 }}>Completa el formulario.</p>
+              <div style={{ padding: '12px 16px', textAlign: 'center', fontFamily: 'inherit' }}>
+                <p style={{ fontWeight: 700, fontSize: 14, color: '#1e293b' }}>📍 Ubicación seleccionada</p>
+                <p style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>Completa el formulario.</p>
               </div>
             </Popup>
           </Marker>
         )}
       </MapContainer>
 
-      {/* Leyenda flotante */}
+      {/* Leyenda flotante — compacta en mobile */}
       <div style={{
         position: 'absolute', bottom: 16, right: 10, zIndex: 400,
-        backgroundColor: 'rgba(255,255,255,0.97)',
+        backgroundColor: 'rgba(255,255,255,0.96)',
         backdropFilter: 'blur(8px)',
-        borderRadius: 14, padding: '10px 14px',
-        boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+        borderRadius: 12, padding: '8px 12px',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
         border: '1px solid #e2e8f0',
         pointerEvents: 'none',
       }}>
-        <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#94a3b8', marginBottom: 8 }}>
+        <p style={{ fontSize: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#94a3b8', marginBottom: 6 }}>
           Leyenda
         </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
           {LEYENDA.map(item => (
-            <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{
-                width: 12, height: 12, borderRadius: '50%',
+                width: 10, height: 10, borderRadius: '50%',
                 backgroundColor: item.color,
                 border: '2px solid white',
                 boxShadow: `0 0 0 1.5px ${item.color}55`,
                 flexShrink: 0,
               }} />
-              <span style={{ fontSize: 11, color: '#334155', fontWeight: 500, whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: 10, color: '#334155', fontWeight: 500, whiteSpace: 'nowrap' }}>
                 {item.emoji} {item.label}
               </span>
             </div>

@@ -222,7 +222,6 @@ export default function Mapa({
         style={{ height: '100%', width: '100%' }}
         zoomControl={true}
         // Opciones optimizadas para touch
-        tap={true}
         touchZoom={true}
         doubleClickZoom={true}
         scrollWheelZoom={true}

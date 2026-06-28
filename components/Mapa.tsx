@@ -316,6 +316,7 @@ export default function Mapa({
       </MapContainer>
 
       {/* Leyenda flotante — compacta en mobile */}
+      {visible && (
       <div style={{
         position: 'absolute', bottom: 16, right: 10, zIndex: 400,
         backgroundColor: 'rgba(255,255,255,0.96)',
@@ -344,7 +345,8 @@ export default function Mapa({
             </div>
           ))}
         </div>
-      </div>
+      </div>      )
+      }
     </div>
   )
 }

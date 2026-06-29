@@ -99,32 +99,32 @@ const crearIconoTemporal = (): L.DivIcon =>
     popupAnchor: [0, -46],
   })
 
-/* ── PinCentral: lee el centro del mapa al soltar (estilo Uber) ── */
+/* ── PinCentral: solo trackea la posición — NO confirma automáticamente ── */
 function PinCentral({
   activo,
-  setCoordenadasSeleccionadas,
+  onCentroChange,
   setMoviendo,
 }: {
   activo: boolean
-  setCoordenadasSeleccionadas: (c: { lat: number; lng: number } | null) => void
+  onCentroChange: (c: { lat: number; lng: number }) => void
   setMoviendo: (v: boolean) => void
 }) {
   const map = useMap()
   useEffect(() => {
     if (!activo) return
-    // Capturar centro inicial al activar modo
+    // Reportar centro inicial
     const c = map.getCenter()
-    setCoordenadasSeleccionadas({ lat: c.lat, lng: c.lng })
+    onCentroChange({ lat: c.lat, lng: c.lng })
     const onStart = () => setMoviendo(true)
-    const onEnd   = () => {
+    const onEnd = () => {
       setMoviendo(false)
       const center = map.getCenter()
-      setCoordenadasSeleccionadas({ lat: center.lat, lng: center.lng })
+      onCentroChange({ lat: center.lat, lng: center.lng })
     }
     map.on('movestart', onStart)
-    map.on('moveend',   onEnd)
+    map.on('moveend', onEnd)
     return () => { map.off('movestart', onStart); map.off('moveend', onEnd) }
-  }, [activo, map, setCoordenadasSeleccionadas, setMoviendo])
+  }, [activo, map, onCentroChange, setMoviendo])
   return null
 }
 
@@ -221,6 +221,7 @@ interface MapaProps {
   coordenadasSeleccionadas: { lat: number; lng: number } | null
   setCoordenadasSeleccionadas: (c: { lat: number; lng: number } | null) => void
   onMarkerClick: (reporte: Reporte) => void
+  onConfirmarUbicacion?: (coords: { lat: number; lng: number }) => void
   visible?: boolean
 }
 
@@ -232,10 +233,13 @@ export default function Mapa({
   coordenadasSeleccionadas,
   setCoordenadasSeleccionadas,
   onMarkerClick,
+  onConfirmarUbicacion,
   visible = true,
 }: MapaProps) {
   const markerRefs = useRef<Record<string, L.Marker | null>>({})
   const abrirPopupRef = useRef<((id: string) => void) | null>(null)
+  // Centro actual del mapa mientras el usuario arrastra (solo visual, no confirmado)
+  const [centroActual, setCentroActual] = useState<{ lat: number; lng: number } | null>(null)
   const [moviendo, setMoviendo] = useState(false)
 
   const abrirPopup = useCallback((id: string) => {
@@ -301,7 +305,7 @@ export default function Mapa({
 
         <PinCentral
           activo={modoReporte}
-          setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
+          onCentroChange={setCentroActual}
           setMoviendo={setMoviendo}
         />
         <MapController
@@ -364,9 +368,9 @@ export default function Mapa({
 
       </MapContainer>
 
-      {/* ── Pin central estilo Uber ── */}
+      {/* ── Pin central estilo Uber (solo visual hasta pulsar Confirmar) ── */}
       {modoReporte && (<>
-        {/* Sombra en el suelo */}
+        {/* Sombra */}
         <div style={{
           position:'absolute', top:'50%', left:'50%', pointerEvents:'none', zIndex:410,
           transform: moviendo ? 'translate(-50%, 10px) scaleX(0.5)' : 'translate(-50%, 5px)',
@@ -389,18 +393,42 @@ export default function Mapa({
             <circle cx="21" cy="20" r="4.5" fill="#2563eb"/>
           </svg>
         </div>
-        {/* Banner instrucción */}
+
+        {/* Panel inferior: instrucción + botón Confirmar */}
         <div style={{
-          position:'absolute', top:16, left:'50%', transform:'translateX(-50%)',
-          zIndex:430, pointerEvents:'none',
-          background:'#1e293b', color:'white', borderRadius:14,
-          padding:'9px 18px', whiteSpace:'nowrap',
-          boxShadow:'0 4px 20px rgba(0,0,0,0.25)',
-          fontSize:13, fontWeight:700,
-          display:'flex', alignItems:'center', gap:8,
+          position:'absolute', bottom:24, left:'50%', transform:'translateX(-50%)',
+          zIndex:430, display:'flex', flexDirection:'column', alignItems:'center', gap:10,
+          width:'calc(100% - 32px)', maxWidth:340,
         }}>
-          <span style={{fontSize:16}}>🗺️</span>
-          {moviendo ? 'Suelta para confirmar…' : 'Mueve el mapa al lugar exacto'}
+          {/* Instrucción */}
+          <div style={{
+            background:'#1e293b', color:'white', borderRadius:12,
+            padding:'8px 16px', fontSize:12, fontWeight:600,
+            boxShadow:'0 4px 16px rgba(0,0,0,0.25)', textAlign:'center', width:'100%',
+          }}>
+            {moviendo ? '🗺️ Soltá para ajustar…' : '🗺️ Mueve el mapa hasta el lugar exacto'}
+          </div>
+          {/* Botón Confirmar — solo activo cuando no está moviendo */}
+          <button
+            disabled={moviendo}
+            onClick={() => {
+              if (centroActual && onConfirmarUbicacion) {
+                onConfirmarUbicacion(centroActual)
+              }
+            }}
+            style={{
+              width:'100%', padding:'14px 0',
+              borderRadius:14, border:'none', cursor: moviendo ? 'not-allowed' : 'pointer',
+              background: moviendo ? '#94a3b8' : '#2563eb',
+              color:'white', fontWeight:800, fontSize:15,
+              boxShadow: moviendo ? 'none' : '0 4px 20px rgba(37,99,235,0.4)',
+              transition:'background 0.2s, box-shadow 0.2s',
+              display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            Confirmar ubicación
+          </button>
         </div>
       </>)}
 

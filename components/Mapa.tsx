@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet'
 import { Reporte } from '@/types'
 import L from 'leaflet'
@@ -120,17 +120,18 @@ function MapController({
   reporteSeleccionado,
   coordenadasSeleccionadas,
   visible,
+  abrirPopupRef,
 }: {
   reporteSeleccionado: Reporte | null
   coordenadasSeleccionadas: { lat: number; lng: number } | null
   visible: boolean
+  abrirPopupRef: React.MutableRefObject<((id: string) => void) | null>
 }) {
   const map = useMap()
 
   // Cada vez que el mapa se vuelve visible, forzar recálculo
   useEffect(() => {
     if (visible) {
-      // Múltiples delays para cubrir animaciones CSS y iOS
       const t1 = setTimeout(() => map.invalidateSize({ animate: false }), 50)
       const t2 = setTimeout(() => map.invalidateSize({ animate: false }), 200)
       const t3 = setTimeout(() => map.invalidateSize({ animate: false }), 500)
@@ -142,8 +143,12 @@ function MapController({
     const r = reporteSeleccionado
     if (r && !isNaN(Number(r.latitud)) && !isNaN(Number(r.longitud))) {
       map.flyTo([Number(r.latitud), Number(r.longitud)], 14, { animate: true, duration: 1.2 })
+      // Abrir popup después del vuelo
+      if (abrirPopupRef.current) {
+        setTimeout(() => abrirPopupRef.current?.(r.id), 1300)
+      }
     }
-  }, [reporteSeleccionado, map])
+  }, [reporteSeleccionado, map, abrirPopupRef])
 
   useEffect(() => {
     const c = coordenadasSeleccionadas
@@ -163,7 +168,7 @@ interface MapaProps {
   coordenadasSeleccionadas: { lat: number; lng: number } | null
   setCoordenadasSeleccionadas: (c: { lat: number; lng: number } | null) => void
   onMarkerClick: (reporte: Reporte) => void
-  visible: boolean  // ← NUEVO: indica si el mapa está visible en pantalla
+  visible?: boolean  // opcional — por defecto true
 }
 
 /* ── Componente principal ────────────────────────────────────── */
@@ -174,10 +179,23 @@ export default function Mapa({
   coordenadasSeleccionadas,
   setCoordenadasSeleccionadas,
   onMarkerClick,
-  visible,
+  visible = true,
 }: MapaProps) {
+  // Refs para acceder a los marcadores y abrir sus popups programáticamente
+  const markerRefs = useRef<Record<string, L.Marker | null>>({})
+  // Ref para exponer la función abrirPopup al MapController
+  const abrirPopupRef = useRef<((id: string) => void) | null>(null)
+
+  const abrirPopup = useCallback((id: string) => {
+    const marker = markerRefs.current[id]
+    if (marker) marker.openPopup()
+  }, [])
+
+  useEffect(() => {
+    abrirPopupRef.current = abrirPopup
+  }, [abrirPopup])
+
   return (
-    // Siempre ocupa 100% del padre — la visibilidad la controla page.tsx con CSS
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
 
       <style>{`
@@ -206,7 +224,6 @@ export default function Mapa({
           top: 2px !important;
           right: 2px !important;
         }
-        /* Botones de zoom más grandes para dedos */
         .leaflet-control-zoom a {
           width: 36px !important;
           height: 36px !important;
@@ -221,7 +238,6 @@ export default function Mapa({
         zoom={6}
         style={{ height: '100%', width: '100%' }}
         zoomControl={true}
-        // Opciones optimizadas para touch
         touchZoom={true}
         doubleClickZoom={true}
         scrollWheelZoom={true}
@@ -230,7 +246,6 @@ export default function Mapa({
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          // Más tiles en caché para mobile con conexión lenta
           keepBuffer={4}
           updateWhenIdle={false}
           updateWhenZooming={false}
@@ -244,6 +259,7 @@ export default function Mapa({
           reporteSeleccionado={reporteSeleccionado}
           coordenadasSeleccionadas={coordenadasSeleccionadas}
           visible={visible}
+          abrirPopupRef={abrirPopupRef}
         />
 
         {/* Marcadores */}
@@ -256,6 +272,7 @@ export default function Mapa({
                 key={reporte.id}
                 position={[Number(reporte.latitud), Number(reporte.longitud)]}
                 icon={crearIconoInfraestructura(reporte.categoria_infraestructura)}
+                ref={(ref) => { markerRefs.current[reporte.id] = ref }}
                 eventHandlers={{ click: () => onMarkerClick(reporte) }}
               >
                 <Popup maxWidth={280} minWidth={220}>
@@ -315,38 +332,38 @@ export default function Mapa({
         )}
       </MapContainer>
 
-      {/* Leyenda flotante — compacta en mobile */}
+      {/* Leyenda flotante */}
       {visible && (
-      <div style={{
-        position: 'absolute', bottom: 16, right: 10, zIndex: 400,
-        backgroundColor: 'rgba(255,255,255,0.96)',
-        backdropFilter: 'blur(8px)',
-        borderRadius: 12, padding: '8px 12px',
-        boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-        border: '1px solid #e2e8f0',
-        pointerEvents: 'none',
-      }}>
-        <p style={{ fontSize: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#94a3b8', marginBottom: 6 }}>
-          Leyenda
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-          {LEYENDA.map(item => (
-            <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{
-                width: 10, height: 10, borderRadius: '50%',
-                backgroundColor: item.color,
-                border: '2px solid white',
-                boxShadow: `0 0 0 1.5px ${item.color}55`,
-                flexShrink: 0,
-              }} />
-              <span style={{ fontSize: 10, color: '#334155', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                {item.emoji} {item.label}
-              </span>
-            </div>
-          ))}
+        <div style={{
+          position: 'absolute', bottom: 16, right: 10, zIndex: 400,
+          backgroundColor: 'rgba(255,255,255,0.96)',
+          backdropFilter: 'blur(8px)',
+          borderRadius: 12, padding: '8px 12px',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+          border: '1px solid #e2e8f0',
+          pointerEvents: 'none',
+        }}>
+          <p style={{ fontSize: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: '#94a3b8', marginBottom: 6 }}>
+            Leyenda
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {LEYENDA.map(item => (
+              <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{
+                  width: 10, height: 10, borderRadius: '50%',
+                  backgroundColor: item.color,
+                  border: '2px solid white',
+                  boxShadow: `0 0 0 1.5px ${item.color}55`,
+                  flexShrink: 0,
+                }} />
+                <span style={{ fontSize: 10, color: '#334155', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                  {item.emoji} {item.label}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>      )
-      }
+      )}
     </div>
   )
 }

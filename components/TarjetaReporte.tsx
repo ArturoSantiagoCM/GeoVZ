@@ -130,7 +130,7 @@ export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado, on
         {/* ── Botón expandir ── */}
         <button
           onClick={toggleExpandir}
-          className="w-full flex items-center justify-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-blue-600 transition-colors py-1 rounded-lg hover:bg-blue-50"
+          className="w-full flex items-center justify-center gap-1 text-[19px] font-semibold text-slate-400 hover:text-blue-600 transition-colors py-1 rounded-lg hover:bg-blue-50"
         >
           {expandido
             ? <><ChevronUp size={12} /> Ocultar </>

@@ -44,7 +44,7 @@ export default function FiltrosTipo({
         <input
           type="text"
           value={busqueda}
-          onChange={e => setBusqueda(e.target.value)}
+          onChange={(e) => setBusqueda(e.target.value.trim())}
           placeholder="Buscar dirección, estado, municipio..."
           className="w-full pl-9 pr-4 py-2.5 text-sm bg-white border border-slate-200 rounded-xl
                      focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500

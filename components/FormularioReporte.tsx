@@ -263,13 +263,13 @@ export default function FormularioReporte({
       <div className="flex justify-between items-center px-5 pt-5 pb-4 border-b border-slate-100">
         <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
           <AlertTriangle size={19} className="text-amber-500 shrink-0" />
-          Registrar lugar con necesidades
+          REGISTRAR LOCAL DE DONACIÓN
         </h2>
         <button
           onClick={onCancel}
           className="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-slate-100 rounded-lg transition"
         >
-          <X size={15} />
+          <X size={16} />
         </button>
       </div>
 
@@ -441,7 +441,7 @@ export default function FormularioReporte({
           <div className="space-y-2">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
               <span className="w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-black flex items-center justify-center">3</span>
-              Lista de necesidades
+              Lista de Objetos necesarios
             </p>
             <textarea
               {...register('descripcion')}

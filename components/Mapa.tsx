@@ -115,7 +115,16 @@ function MapClickHandler({
   return null
 }
 
-/* ── Controlador de cámara + invalidateSize al montar ────────── */
+/* ── Valida que lat/lng sean números finitos ─────────────────── */
+function coordsValidas(lat: unknown, lng: unknown): lat is number {
+  return (
+    typeof lat === 'number' && typeof lng === 'number' &&
+    isFinite(lat) && isFinite(lng) &&
+    !isNaN(lat) && !isNaN(lng)
+  )
+}
+
+/* ── Controlador de cámara ───────────────────────────────────── */
 function MapController({
   reporteSeleccionado,
   coordenadasSeleccionadas,
@@ -129,33 +138,54 @@ function MapController({
 }) {
   const map = useMap()
 
-  // Cada vez que el mapa se vuelve visible, forzar recálculo
-  useEffect(() => {
-    if (visible) {
-      const t1 = setTimeout(() => map.invalidateSize({ animate: false }), 50)
-      const t2 = setTimeout(() => map.invalidateSize({ animate: false }), 200)
-      const t3 = setTimeout(() => map.invalidateSize({ animate: false }), 500)
-      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
-    }
-  }, [visible, map])
-
-  useEffect(() => {
-    const r = reporteSeleccionado
-    if (r && !isNaN(Number(r.latitud)) && !isNaN(Number(r.longitud))) {
-      map.flyTo([Number(r.latitud), Number(r.longitud)], 14, { animate: true, duration: 1.2 })
-      // Abrir popup después del vuelo
-      if (abrirPopupRef.current) {
-        setTimeout(() => abrirPopupRef.current?.(r.id), 1300)
+  /* Espera a que el contenedor tenga dimensiones reales.
+     Cuando el mapa está oculto con CSS (display:none / h-0),
+     getSize() devuelve {x:0, y:0} y flyTo proyecta NaN. */
+  const volarA = useCallback((lat: number, lng: number, onLlegada?: () => void) => {
+    const ejecutar = () => {
+      map.invalidateSize({ animate: false })
+      const { x, y } = map.getSize()
+      if (x > 0 && y > 0) {
+        map.flyTo([lat, lng], 14, { animate: true, duration: 1.2 })
+        if (onLlegada) setTimeout(onLlegada, 1350)
       }
     }
-  }, [reporteSeleccionado, map, abrirPopupRef])
-
-  useEffect(() => {
-    const c = coordenadasSeleccionadas
-    if (c && !isNaN(c.lat) && !isNaN(c.lng)) {
-      map.flyTo([c.lat, c.lng], 14, { animate: true, duration: 1.2 })
+    const { x, y } = map.getSize()
+    if (x > 0 && y > 0) {
+      ejecutar()
+    } else {
+      // El contenedor aún no tiene tamaño — esperar al siguiente paint
+      const id = setTimeout(ejecutar, 350)
+      return () => clearTimeout(id)
     }
-  }, [coordenadasSeleccionadas, map])
+  }, [map])
+
+  // Invalidar tamaño al hacerse visible
+  useEffect(() => {
+    if (!visible) return
+    const t1 = setTimeout(() => map.invalidateSize({ animate: false }), 50)
+    const t2 = setTimeout(() => map.invalidateSize({ animate: false }), 200)
+    const t3 = setTimeout(() => map.invalidateSize({ animate: false }), 500)
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
+  }, [visible, map])
+
+  // Volar a reporte seleccionado y abrir su popup
+  useEffect(() => {
+    if (!reporteSeleccionado) return
+    const lat = Number(reporteSeleccionado.latitud)
+    const lng = Number(reporteSeleccionado.longitud)
+    if (!coordsValidas(lat, lng)) return
+    const id = reporteSeleccionado.id
+    return volarA(lat, lng, () => abrirPopupRef.current?.(id)) ?? undefined
+  }, [reporteSeleccionado, volarA, abrirPopupRef])
+
+  // Volar a coordenadas del modo reporte
+  useEffect(() => {
+    if (!coordenadasSeleccionadas) return
+    const { lat, lng } = coordenadasSeleccionadas
+    if (!coordsValidas(lat, lng)) return
+    return volarA(lat, lng) ?? undefined
+  }, [coordenadasSeleccionadas, volarA])
 
   return null
 }
@@ -168,7 +198,7 @@ interface MapaProps {
   coordenadasSeleccionadas: { lat: number; lng: number } | null
   setCoordenadasSeleccionadas: (c: { lat: number; lng: number } | null) => void
   onMarkerClick: (reporte: Reporte) => void
-  visible?: boolean  // opcional — por defecto true
+  visible?: boolean
 }
 
 /* ── Componente principal ────────────────────────────────────── */
@@ -181,19 +211,14 @@ export default function Mapa({
   onMarkerClick,
   visible = true,
 }: MapaProps) {
-  // Refs para acceder a los marcadores y abrir sus popups programáticamente
   const markerRefs = useRef<Record<string, L.Marker | null>>({})
-  // Ref para exponer la función abrirPopup al MapController
   const abrirPopupRef = useRef<((id: string) => void) | null>(null)
 
   const abrirPopup = useCallback((id: string) => {
-    const marker = markerRefs.current[id]
-    if (marker) marker.openPopup()
+    markerRefs.current[id]?.openPopup()
   }, [])
 
-  useEffect(() => {
-    abrirPopupRef.current = abrirPopup
-  }, [abrirPopup])
+  useEffect(() => { abrirPopupRef.current = abrirPopup }, [abrirPopup])
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
@@ -203,8 +228,7 @@ export default function Mapa({
           0%   { transform: scale(0.5); opacity: 0.9; }
           100% { transform: scale(3);   opacity: 0; }
         }
-        .infra-marker-icon,
-        .temp-marker-icon {
+        .infra-marker-icon, .temp-marker-icon {
           background: transparent !important;
           border: none !important;
           box-shadow: none !important;
@@ -264,7 +288,7 @@ export default function Mapa({
 
         {/* Marcadores */}
         {reportes
-          .filter(r => !isNaN(Number(r.latitud)) && !isNaN(Number(r.longitud)))
+          .filter(r => coordsValidas(Number(r.latitud), Number(r.longitud)))
           .map(reporte => {
             const cfg = INFRA_CONFIG[reporte.categoria_infraestructura] ?? { color: '#64748b', emoji: '📍', label: reporte.categoria_infraestructura }
             return (
@@ -277,7 +301,6 @@ export default function Mapa({
               >
                 <Popup maxWidth={280} minWidth={220}>
                   <div style={{ fontFamily: 'inherit' }}>
-                    {/* Header colorido */}
                     <div style={{ backgroundColor: cfg.color, padding: '12px 16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontSize: 22 }}>{cfg.emoji}</span>
@@ -291,12 +314,10 @@ export default function Mapa({
                         </div>
                       </div>
                     </div>
-                    {/* Cuerpo */}
                     <div style={{ padding: '12px 16px' }}>
                       {reporte.direccion_texto && (
                         <p style={{ color: '#64748b', fontSize: 12, marginBottom: 10, lineHeight: 1.5, display: 'flex', gap: 4 }}>
-                          <span>📍</span>
-                          <span>{reporte.direccion_texto}</span>
+                          <span>📍</span><span>{reporte.direccion_texto}</span>
                         </p>
                       )}
                       {reporte.descripcion && (

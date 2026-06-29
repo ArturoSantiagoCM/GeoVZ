@@ -277,10 +277,12 @@ export default function Page() {
         </aside>
 
         {/* ── MAPA ── */}
+        {/* Usamos invisible+pointer-events-none en vez de hidden para que Leaflet
+            siempre tenga un contenedor con dimensiones reales y pueda hacer
+            invalidateSize correctamente al cambiar de vista. */}
         <main className={`
-          flex-1 relative
-          ${vistaMobile === 'mapa' ? 'flex' : 'hidden md:flex'}
-          flex-col
+          flex-1 relative flex flex-col
+          ${vistaMobile === 'mapa' ? '' : 'invisible pointer-events-none md:visible md:pointer-events-auto'}
         `}
           style={{ minHeight: 0 }}
         >
@@ -307,6 +309,7 @@ export default function Page() {
               coordenadasSeleccionadas={coordenadasSeleccionadas}
               setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
               onMarkerClick={r => setReporteSeleccionado(r)}
+              visible={vistaMobile === 'mapa'}
             />
           </div>
         </main>

@@ -215,7 +215,7 @@ export default function Page() {
                 <div className="px-4 py-4 space-y-3 pb-6">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      Lugares de donación?
+                      --Lugares de Donación--
                     </span>
                     <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full">
                       {reportesFiltrados.length}

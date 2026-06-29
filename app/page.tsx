@@ -124,20 +124,6 @@ export default function Page() {
     )
   }
 
-  /* ── Volver al formulario tras fijar punto en el mapa (modo pin Uber) ── */
-  useEffect(() => {
-    // Solo actuar si: el usuario está en el mapa, en modo reporte, y acaba de fijar coords
-    if (vistaMobile === 'mapa' && modoReporte && coordenadasSeleccionadas) {
-      const t = setTimeout(() => {
-        setVistaMobile('reportar')
-        // modoReporte permanece true para que el pin siga activo si vuelve al mapa
-      }, 600)
-      return () => clearTimeout(t)
-    }
-  // Solo se dispara cuando cambian las coordenadas
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coordenadasSeleccionadas])
-
   /* ── Loader ── */
   if (cargando) {
     return (
@@ -199,7 +185,6 @@ export default function Page() {
                   onCancel={() => cambiarVistaMobile('lista')}
                   onSuccess={() => cambiarVistaMobile('mapa')}
                   onSeleccionarEnMapa={() => {
-                    // Ir al mapa con modoReporte activo para que PinCentral esté activo
                     setModoReporte(true)
                     setVistaMobile('mapa')
                   }}
@@ -304,7 +289,7 @@ export default function Page() {
         `}
           style={{ minHeight: 0 }}
         >
-          {/* Banner de instrucción ahora vive dentro de Mapa.tsx (PinCentral) */}
+          {/* Banner de instrucción vive dentro de Mapa.tsx */}
 
           <div className="flex-1" style={{ minHeight: 0 }}>
             <Mapa
@@ -314,6 +299,10 @@ export default function Page() {
               coordenadasSeleccionadas={coordenadasSeleccionadas}
               setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
               onMarkerClick={r => setReporteSeleccionado(r)}
+              onConfirmarUbicacion={(coords) => {
+                setCoordenadasSeleccionadas(coords)
+                setVistaMobile('reportar')
+              }}
               visible={vistaMobile === 'mapa'}
             />
           </div>

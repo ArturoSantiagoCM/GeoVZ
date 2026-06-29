@@ -19,9 +19,10 @@ interface TarjetaReporteProps {
   reporte: Reporte
   onSelect: (reporte: Reporte) => void
   estaSeleccionado: boolean
+  onUpdate?: (id: string, descripcion: string) => void  // callback para actualizar estado padre
 }
 
-export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado }: TarjetaReporteProps) {
+export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado, onUpdate }: TarjetaReporteProps) {
   const cfg = CONFIG_INFRA[reporte.categoria_infraestructura] ?? DEFAULT_CONFIG
 
   const [expandido, setExpandido]     = useState(false)
@@ -47,6 +48,8 @@ export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado }: 
       if (error) throw error
       reporte.descripcion = textoEdicion
       setEditando(false)
+      // Notificar al padre para que actualice su estado (y el popup del mapa)
+      onUpdate?.(reporte.id, textoEdicion)
     } catch (err: unknown) {
       setErrorGuardar(err instanceof Error ? err.message : 'Error al guardar')
     } finally { setGuardando(false) }

@@ -191,7 +191,7 @@ export default function Page() {
               <>
                 {/* ── Encabezado ── */}
                 <div className="px-4 pt-5 pb-4 border-b border-slate-100">
-                  <h2 className="text-3xl font-black text-slate-900 tracking-tighter leading-none">
+                  <h2 className="text-6xl font-black text-slate-900 tracking-tighter leading-none">
                     ¿DÓNDE<br/>DONAR?
                   </h2>
                   <p className="text-xs text-slate-500 mt-2 font-medium">

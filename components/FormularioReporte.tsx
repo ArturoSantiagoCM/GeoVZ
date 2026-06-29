@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { supabase } from '@/lib/supabase'
 import { CategoriaInfraestructura } from '@/types'
-import { MapPin, AlertTriangle, Check, Loader2, X, Search } from 'lucide-react'
+import { MapPin, AlertTriangle, Check, Loader2, X, Search, LocateFixed } from 'lucide-react'
 
 const schemaReporte = z.object({
   categoria_infraestructura: z.string().min(1, { message: 'Selecciona un tipo de local' }),
@@ -52,6 +52,40 @@ export default function FormularioReporte({
 }: FormularioReporteProps) {
   const [enviando, setEnviando]           = useState(false)
   const [errorEnvio, setErrorEnvio]       = useState<string | null>(null)
+
+  // ── Geolocalización ─────────────────────────────────────────────
+  const [geoEstado, setGeoEstado] = useState<'idle' | 'cargando' | 'error'>('idle')
+  const [geoError, setGeoError]   = useState<string | null>(null)
+
+  const usarMiUbicacion = () => {
+    if (!navigator.geolocation) {
+      setGeoError('Tu navegador no soporta geolocalización.')
+      setGeoEstado('error')
+      return
+    }
+    setGeoEstado('cargando')
+    setGeoError(null)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude
+        const lng = pos.coords.longitude
+        setCoordenadasSeleccionadas({ lat, lng })
+        setDireccionResuelta(null) // forzar geocodificación inversa
+        setGeoEstado('idle')
+      },
+      (err) => {
+        setGeoEstado('error')
+        if (err.code === err.PERMISSION_DENIED) {
+          setGeoError('Permiso denegado. Activa la ubicación en tu navegador.')
+        } else if (err.code === err.POSITION_UNAVAILABLE) {
+          setGeoError('No se pudo obtener tu ubicación. Intenta de nuevo.')
+        } else {
+          setGeoError('Tiempo de espera agotado. Intenta de nuevo.')
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    )
+  }
 
   // ── Autocompletado ──────────────────────────────────────────────
   const [textoBusqueda, setTextoBusqueda]         = useState('')
@@ -229,7 +263,7 @@ export default function FormularioReporte({
       <div className="flex justify-between items-center px-5 pt-5 pb-4 border-b border-slate-100">
         <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
           <AlertTriangle size={16} className="text-amber-500 shrink-0" />
-          REGISTRAR LOCAL PARA DONAR
+          Registrar lugar con necesidades
         </h2>
         <button
           onClick={onCancel}
@@ -323,6 +357,36 @@ export default function FormularioReporte({
             )}
           </div>
 
+          <p className="text-[10px] text-slate-400 flex items-center gap-1">
+            <span>o</span>
+            <span className="font-medium text-blue-600">toca directamente en el mapa</span>
+            <span>para marcar la ubicación</span>
+          </p>
+
+          {/* Botón usar mi ubicación */}
+          <button
+            type="button"
+            onClick={usarMiUbicacion}
+            disabled={geoEstado === 'cargando'}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-green-200
+                       bg-green-50 hover:bg-green-100 text-green-700 font-bold text-xs transition
+                       disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {geoEstado === 'cargando' ? (
+              <><Loader2 size={14} className="animate-spin" /> Obteniendo ubicación…</>
+            ) : (
+              <><LocateFixed size={14} /> Usar mi ubicación actual</>
+            )}
+          </button>
+
+          {/* Error de geolocalización */}
+          {geoEstado === 'error' && geoError && (
+            <div className="flex items-start gap-2 px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-[11px] text-red-600 font-medium">
+              <span className="shrink-0 mt-0.5">⚠️</span>
+              <span>{geoError}</span>
+            </div>
+          )}
+
           {/* Chip de ubicación confirmada */}
           {coordenadasSeleccionadas && (
             <div className={`
@@ -343,6 +407,14 @@ export default function FormularioReporte({
                   <p className="text-slate-500 line-clamp-2 mt-0.5">{direccionResuelta?.direccion}</p>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Estado vacío */}
+          {!coordenadasSeleccionadas && (
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-amber-200 bg-amber-50 text-[11px] text-amber-700 font-medium">
+              <span>⚠️</span>
+              <span>Busca una dirección arriba o toca el mapa</span>
             </div>
           )}
         </div>

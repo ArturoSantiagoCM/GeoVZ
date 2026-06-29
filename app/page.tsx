@@ -6,9 +6,8 @@ import {
   List as ListIcon,
   PlusCircle,
   HeartHandshake,
-  AlertCircle,
 } from 'lucide-react'
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Reporte } from '@/types'
 import dynamic from 'next/dynamic'
@@ -48,21 +47,19 @@ export default function Page() {
     if (vista !== 'reportar') setCoordenadasSeleccionadas(null)
   }
 
-  /* ── Carga de reportes reutilizable ── */
-  const cargarReportes = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('reportes')
-        .select('*')
-        .order('creado_en', { ascending: false })
-      if (!error && data) setReportes(data as Reporte[])
-    } catch (e) { console.error(e) }
-    finally { setCargando(false) }
-  }, [])
-
   /* ── Carga inicial + realtime ── */
   useEffect(() => {
-    cargarReportes()
+    const cargar = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('reportes')
+          .select('*')
+          .order('creado_en', { ascending: false })
+        if (!error && data) setReportes(data as Reporte[])
+      } catch (e) { console.error(e) }
+      finally { setCargando(false) }
+    }
+    cargar()
 
     const channel = supabase
       .channel('reportes-nuevos')
@@ -127,6 +124,20 @@ export default function Page() {
     )
   }
 
+  /* ── Volver al formulario tras fijar punto en el mapa (modo pin Uber) ── */
+  useEffect(() => {
+    // Solo actuar si: el usuario está en el mapa, en modo reporte, y acaba de fijar coords
+    if (vistaMobile === 'mapa' && modoReporte && coordenadasSeleccionadas) {
+      const t = setTimeout(() => {
+        setVistaMobile('reportar')
+        // modoReporte permanece true para que el pin siga activo si vuelve al mapa
+      }, 600)
+      return () => clearTimeout(t)
+    }
+  // Solo se dispara cuando cambian las coordenadas
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coordenadasSeleccionadas])
+
   /* ── Loader ── */
   if (cargando) {
     return (
@@ -186,7 +197,12 @@ export default function Page() {
                   coordenadasSeleccionadas={coordenadasSeleccionadas}
                   setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
                   onCancel={() => cambiarVistaMobile('lista')}
-                  onSuccess={() => { cargarReportes(); cambiarVistaMobile('lista') }}
+                  onSuccess={() => cambiarVistaMobile('mapa')}
+                  onSeleccionarEnMapa={() => {
+                    // Ir al mapa con modoReporte activo para que PinCentral esté activo
+                    setModoReporte(true)
+                    setVistaMobile('mapa')
+                  }}
                 />
               </div>
             ) : (
@@ -288,20 +304,7 @@ export default function Page() {
         `}
           style={{ minHeight: 0 }}
         >
-          {/* Banner modo reporte */}
-          {modoReporte && !coordenadasSeleccionadas && (
-            <div
-              className="absolute top-4 left-1/2 -translate-x-1/2 z-[450] flex items-center gap-2
-                         bg-blue-600 text-white px-4 py-2.5 rounded-xl shadow-lg border border-blue-500/40
-                         w-[90%] max-w-sm"
-              style={{ animation: 'bounce-subtle 2s ease-in-out infinite' }}
-            >
-              <AlertCircle size={16} className="shrink-0" />
-              <p className="text-xs font-bold leading-tight">
-                Toca el mapa para marcar la ubicación exacta del lugar
-              </p>
-            </div>
-          )}
+          {/* Banner de instrucción ahora vive dentro de Mapa.tsx (PinCentral) */}
 
           <div className="flex-1" style={{ minHeight: 0 }}>
             <Mapa

@@ -32,6 +32,7 @@ type MobileView = 'mapa' | 'lista' | 'reportar'
 export default function Page() {
   const [reportes, setReportes]                                   = useState<Reporte[]>([])
   const [cargando, setCargando]                                   = useState(true)
+  const [actualizando, setActualizando]                           = useState(false)
   const [vistaMobile, setVistaMobile]                             = useState<MobileView>('lista')
   const [filtroTipo, setFiltroTipo]                               = useState('')
   const [filtroInfraestructura, setFiltroInfraestructura]         = useState('')
@@ -39,6 +40,17 @@ export default function Page() {
   const [reporteSeleccionado, setReporteSeleccionado]             = useState<Reporte | null>(null)
   const [modoReporte, setModoReporte]                             = useState(false)
   const [coordenadasSeleccionadas, setCoordenadasSeleccionadas]   = useState<{ lat: number; lng: number } | null>(null)
+
+  /* ── Recarga manual desde DB ── */
+  const recargarReportes = async () => {
+    setActualizando(true)
+    try {
+      const { data, error } = await supabase
+        .from('reportes').select('*').order('creado_en', { ascending: false })
+      if (!error && data) setReportes(data as Reporte[])
+    } catch (e) { console.error(e) }
+    finally { setActualizando(false) }
+  }
 
   /* ── Cambio de vista mobile ── */
   const cambiarVistaMobile = (vista: MobileView) => {
@@ -171,10 +183,30 @@ export default function Page() {
           </div>
         </div>
 
-        {/* Contador en navbar */}
-        <div className="flex items-center gap-2 text-xs text-slate-400">
-          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          <span className="font-medium text-slate-300">{reportes.length} registros</span>
+        {/* Contador + botón actualizar */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 text-xs text-slate-400">
+            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            <span className="font-medium text-slate-300">{reportes.length} registros</span>
+          </div>
+          <button
+            onClick={recargarReportes}
+            disabled={actualizando}
+            className="flex items-center justify-center w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700
+                       border border-slate-700 transition disabled:opacity-50"
+            title="Actualizar lista"
+          >
+            <svg
+              width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="#94a3b8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+              className={actualizando ? 'animate-spin' : ''}
+            >
+              <path d="M21 2v6h-6"/>
+              <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
+              <path d="M3 22v-6h6"/>
+              <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+            </svg>
+          </button>
         </div>
       </header>
 
@@ -197,7 +229,10 @@ export default function Page() {
                   coordenadasSeleccionadas={coordenadasSeleccionadas}
                   setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
                   onCancel={() => cambiarVistaMobile('lista')}
-                  onSuccess={() => cambiarVistaMobile('mapa')}
+                  onSuccess={async () => {
+                    await recargarReportes()
+                    cambiarVistaMobile('lista')
+                  }}
                   onSeleccionarEnMapa={() => {
                     // Ir al mapa con modoReporte activo para que PinCentral esté activo
                     setModoReporte(true)

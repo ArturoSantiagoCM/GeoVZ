@@ -134,7 +134,7 @@ export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado, on
         >
           {expandido
             ? <><ChevronUp size={12} /> Ocultar </>
-            : <><ChevronDown size={12} /> QUÉ DONAR?</>
+            : <><ChevronDown size={12} /> Qué se Necesita?</>
           }
         </button>
 

@@ -48,7 +48,7 @@ export default function Page() {
     if (vista !== 'reportar') setCoordenadasSeleccionadas(null)
   }
 
-  /* ── Carga de reportes (reutilizable) ── */
+  /* ── Carga de reportes reutilizable ── */
   const cargarReportes = useCallback(async () => {
     try {
       const { data, error } = await supabase

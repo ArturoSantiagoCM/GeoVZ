@@ -34,6 +34,8 @@ interface FormularioReporteProps {
   setCoordenadasSeleccionadas: (coords: { lat: number; lng: number } | null) => void
   onSuccess: () => void
   onCancel: () => void
+  /** Activa el modo pin-central estilo Uber en el mapa */
+  onSeleccionarEnMapa?: () => void
 }
 
 const CATEGORIAS: { valor: CategoriaInfraestructura; etiqueta: string; emoji: string }[] = [
@@ -49,6 +51,7 @@ export default function FormularioReporte({
   setCoordenadasSeleccionadas,
   onSuccess,
   onCancel,
+  onSeleccionarEnMapa,
 }: FormularioReporteProps) {
   const [enviando, setEnviando]           = useState(false)
   const [errorEnvio, setErrorEnvio]       = useState<string | null>(null)
@@ -356,6 +359,25 @@ export default function FormularioReporte({
               </div>
             )}
           </div>
+
+          {/* Botón mover mapa — pin central estilo Uber */}
+          {onSeleccionarEnMapa && (
+            <button
+              type="button"
+              onClick={onSeleccionarEnMapa}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-blue-200
+                         bg-blue-50 hover:bg-blue-100 active:scale-[0.98] transition-all"
+            >
+              <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
+                <MapPin size={18} className="text-white" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-bold text-blue-700 leading-tight">Mover el mapa al lugar</p>
+                <p className="text-[11px] text-blue-500 mt-0.5">Centra el pin exactamente donde es</p>
+              </div>
+              <svg className="ml-auto shrink-0 text-blue-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+          )}
 
           {/* Botón usar mi ubicación */}
           <button

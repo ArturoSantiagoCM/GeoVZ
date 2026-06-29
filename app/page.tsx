@@ -194,7 +194,7 @@ export default function Page() {
                   <h2 className="text-6xl font-black text-slate-900 tracking-tighter leading-none">
                     ¿DÓNDE<br/>DONAR?
                   </h2>
-                  <p className="text-xs text-slate-500 mt-2 font-medium">
+                  <p className="text-1x1 text-slate-500 mt-2 font-medium">
                     Necesidades críticas en tiempo real · Venezuela
                   </p>
                 </div>
@@ -252,12 +252,12 @@ export default function Page() {
                   </p>
                   <div className="grid grid-cols-2 gap-2">
                     <a
-                      href="https://redatudavenezuela.com"
+                      href="https://redayudavenezuela.com"
                       target="_blank" rel="noopener noreferrer"
                       className="flex items-center justify-between p-3 bg-red-50 hover:bg-red-100
                                  border border-red-200 rounded-xl text-[11px] font-bold text-red-700 transition"
                     >
-                      <span>Red Ayuda</span>
+                      <span>Personar Desaparecidas</span>
                       <ExternalLink size={11} className="text-red-400 shrink-0" />
                     </a>
                     <a
@@ -266,7 +266,7 @@ export default function Page() {
                       className="flex items-center justify-between p-3 bg-blue-50 hover:bg-blue-100
                                  border border-blue-200 rounded-xl text-[11px] font-bold text-blue-700 transition"
                     >
-                      <span>Hospitales</span>
+                      <span>Personas en Hospitales</span>
                       <ExternalLink size={11} className="text-blue-400 shrink-0" />
                     </a>
                   </div>

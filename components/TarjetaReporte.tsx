@@ -127,6 +127,20 @@ export default function TarjetaReporte({ reporte, onSelect, estaSeleccionado, on
           )}
         </div>
 
+        {/* ── Link Google Maps ── */}
+        <a
+          href={`https://www.google.com/maps/search/?api=1&query=${Number(reporte.latitud)},${Number(reporte.longitud)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={e => e.stopPropagation()}
+          className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg
+                     text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200
+                     transition w-fit"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="shrink-0"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          Ver en Google Maps
+        </a>
+
         {/* ── Botón expandir ── */}
         <button
           onClick={toggleExpandir}

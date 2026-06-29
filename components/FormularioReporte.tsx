@@ -262,7 +262,7 @@ export default function FormularioReporte({
       {/* Header */}
       <div className="flex justify-between items-center px-5 pt-5 pb-4 border-b border-slate-100">
         <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-          <AlertTriangle size={16} className="text-amber-500 shrink-0" />
+          <AlertTriangle size={19} className="text-amber-500 shrink-0" />
           Registrar lugar con necesidades
         </h2>
         <button
@@ -357,12 +357,6 @@ export default function FormularioReporte({
             )}
           </div>
 
-          <p className="text-[10px] text-slate-400 flex items-center gap-1">
-            <span>o</span>
-            <span className="font-medium text-blue-600">toca directamente en el mapa</span>
-            <span>para marcar la ubicación</span>
-          </p>
-
           {/* Botón usar mi ubicación */}
           <button
             type="button"
@@ -381,7 +375,7 @@ export default function FormularioReporte({
 
           {/* Error de geolocalización */}
           {geoEstado === 'error' && geoError && (
-            <div className="flex items-start gap-2 px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-[11px] text-red-600 font-medium">
+            <div className="flex items-start gap-2 px-5 py-2 rounded-xl border border-red-200 bg-red-50 text-[11px] text-red-600 font-medium">
               <span className="shrink-0 mt-0.5">⚠️</span>
               <span>{geoError}</span>
             </div>
@@ -407,14 +401,6 @@ export default function FormularioReporte({
                   <p className="text-slate-500 line-clamp-2 mt-0.5">{direccionResuelta?.direccion}</p>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Estado vacío */}
-          {!coordenadasSeleccionadas && (
-            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-amber-200 bg-amber-50 text-[11px] text-amber-700 font-medium">
-              <span>⚠️</span>
-              <span>Busca una dirección arriba o toca el mapa</span>
             </div>
           )}
         </div>

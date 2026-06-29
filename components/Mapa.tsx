@@ -1,6 +1,6 @@
 'use client'
-import { useEffect, useRef, useCallback, useState } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
+import { useEffect, useRef, useCallback } from 'react'
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet'
 import { Reporte } from '@/types'
 import L from 'leaflet'
 
@@ -99,44 +99,19 @@ const crearIconoTemporal = (): L.DivIcon =>
     popupAnchor: [0, -46],
   })
 
-/* ── Pin central estilo Uber ─────────────────────────────────────
-   Lee el centro del mapa en moveend y lo pasa al padre.
-   El pin es DOM puro (no un Marker de Leaflet) para que siempre
-   quede exactamente en el centro del contenedor. */
-function PinCentral({
-  activo,
+/* ── Listener de clicks ──────────────────────────────────────── */
+function MapClickHandler({
+  modoReporte,
   setCoordenadasSeleccionadas,
-  setMoviendo,
 }: {
-  activo: boolean
+  modoReporte: boolean
   setCoordenadasSeleccionadas: (c: { lat: number; lng: number } | null) => void
-  setMoviendo: (v: boolean) => void
 }) {
-  const map = useMap()
-
-  useEffect(() => {
-    if (!activo) return
-
-    const onMoveStart = () => setMoviendo(true)
-    const onMoveEnd = () => {
-      setMoviendo(false)
-      const center = map.getCenter()
-      setCoordenadasSeleccionadas({ lat: center.lat, lng: center.lng })
-    }
-
-    map.on('movestart', onMoveStart)
-    map.on('moveend',   onMoveEnd)
-
-    // Capturar el centro inicial al activar el modo
-    const center = map.getCenter()
-    setCoordenadasSeleccionadas({ lat: center.lat, lng: center.lng })
-
-    return () => {
-      map.off('movestart', onMoveStart)
-      map.off('moveend',   onMoveEnd)
-    }
-  }, [activo, map, setCoordenadasSeleccionadas, setMoviendo])
-
+  useMapEvents({
+    click(e) {
+      if (modoReporte) setCoordenadasSeleccionadas({ lat: e.latlng.lat, lng: e.latlng.lng })
+    },
+  })
   return null
 }
 
@@ -248,7 +223,6 @@ export default function Mapa({
 }: MapaProps) {
   const markerRefs = useRef<Record<string, L.Marker | null>>({})
   const abrirPopupRef = useRef<((id: string) => void) | null>(null)
-  const [moviendo, setMoviendo] = useState(false)
 
   const abrirPopup = useCallback((id: string) => {
     markerRefs.current[id]?.openPopup()
@@ -290,7 +264,7 @@ export default function Mapa({
           line-height: 36px !important;
           font-size: 18px !important;
         }
-        ${modoReporte ? '.leaflet-container { cursor: grab !important; }' : ''}
+        ${modoReporte ? '.leaflet-container { cursor: crosshair !important; }' : ''}
       `}</style>
 
       <MapContainer
@@ -311,10 +285,9 @@ export default function Mapa({
           updateWhenZooming={false}
         />
 
-        <PinCentral
-          activo={modoReporte}
+        <MapClickHandler
+          modoReporte={modoReporte}
           setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
-          setMoviendo={setMoviendo}
         />
         <MapController
           reporteSeleccionado={reporteSeleccionado}
@@ -374,58 +347,21 @@ export default function Mapa({
             )
           })}
 
-        {/* Marcador temporal — reemplazado por pin central DOM */}
+        {/* Marcador temporal */}
+        {modoReporte && coordenadasSeleccionadas && (
+          <Marker
+            position={[coordenadasSeleccionadas.lat, coordenadasSeleccionadas.lng]}
+            icon={crearIconoTemporal()}
+          >
+            <Popup>
+              <div style={{ padding: '12px 16px', textAlign: 'center', fontFamily: 'inherit' }}>
+                <p style={{ fontWeight: 700, fontSize: 14, color: '#1e293b' }}>📍 Ubicación seleccionada</p>
+                <p style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>Completa el formulario.</p>
+              </div>
+            </Popup>
+          </Marker>
+        )}
       </MapContainer>
-
-      {/* ── Pin central estilo Uber (solo en modo reporte) ── */}
-      {modoReporte && (
-        <>
-          {/* Sombra en el suelo */}
-          <div style={{
-            position: 'absolute', top: '50%', left: '50%',
-            transform: moviendo ? 'translate(-50%, 8px) scaleX(0.6)' : 'translate(-50%, 4px)',
-            zIndex: 410, width: 20, height: 6,
-            background: 'rgba(0,0,0,0.2)', borderRadius: '50%',
-            filter: 'blur(3px)', pointerEvents: 'none',
-            transition: 'transform 0.15s ease, opacity 0.15s ease',
-            opacity: moviendo ? 0.3 : 0.6,
-          }} />
-
-          {/* Pin SVG */}
-          <div style={{
-            position: 'absolute', top: '50%', left: '50%',
-            transform: moviendo
-              ? 'translate(-50%, calc(-100% - 14px))'
-              : 'translate(-50%, -100%)',
-            zIndex: 420, pointerEvents: 'none',
-            transition: 'transform 0.15s cubic-bezier(0.34,1.56,0.64,1)',
-            filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.3))',
-          }}>
-            <svg width="40" height="52" viewBox="0 0 40 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M20 0C9.507 0 1 8.507 1 19C1 33.25 20 51 20 51C20 51 39 33.25 39 19C39 8.507 30.493 0 20 0Z"
-                    fill="#2563eb" stroke="white" strokeWidth="2"/>
-              <circle cx="20" cy="19" r="8" fill="white"/>
-              <circle cx="20" cy="19" r="4" fill="#2563eb"/>
-            </svg>
-          </div>
-
-          {/* Banner instrucción */}
-          <div style={{
-            position: 'absolute', top: 16, left: '50%',
-            transform: 'translateX(-50%)', zIndex: 430,
-            background: '#1e293b', color: 'white',
-            borderRadius: 14, padding: '10px 18px',
-            whiteSpace: 'nowrap',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
-            fontSize: 13, fontWeight: 700,
-            display: 'flex', alignItems: 'center', gap: 8,
-            pointerEvents: 'none',
-          }}>
-            <span style={{ fontSize: 16 }}>🗺️</span>
-            {moviendo ? 'Soltá para confirmar…' : 'Mueve el mapa hasta el lugar exacto'}
-          </div>
-        </>
-      )}
 
       {/* Leyenda flotante */}
       {visible && (

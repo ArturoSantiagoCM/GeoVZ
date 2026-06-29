@@ -6,8 +6,9 @@ import {
   List as ListIcon,
   PlusCircle,
   HeartHandshake,
+  AlertCircle,
 } from 'lucide-react'
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Reporte } from '@/types'
 import dynamic from 'next/dynamic'
@@ -47,19 +48,21 @@ export default function Page() {
     if (vista !== 'reportar') setCoordenadasSeleccionadas(null)
   }
 
+  /* ── Carga de reportes (reutilizable) ── */
+  const cargarReportes = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('reportes')
+        .select('*')
+        .order('creado_en', { ascending: false })
+      if (!error && data) setReportes(data as Reporte[])
+    } catch (e) { console.error(e) }
+    finally { setCargando(false) }
+  }, [])
+
   /* ── Carga inicial + realtime ── */
   useEffect(() => {
-    const cargar = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('reportes')
-          .select('*')
-          .order('creado_en', { ascending: false })
-        if (!error && data) setReportes(data as Reporte[])
-      } catch (e) { console.error(e) }
-      finally { setCargando(false) }
-    }
-    cargar()
+    cargarReportes()
 
     const channel = supabase
       .channel('reportes-nuevos')
@@ -183,11 +186,7 @@ export default function Page() {
                   coordenadasSeleccionadas={coordenadasSeleccionadas}
                   setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
                   onCancel={() => cambiarVistaMobile('lista')}
-                  onSuccess={() => cambiarVistaMobile('mapa')}
-                  onSeleccionarEnMapa={() => {
-                    setModoReporte(true)
-                    setVistaMobile('mapa')
-                  }}
+                  onSuccess={() => { cargarReportes(); cambiarVistaMobile('lista') }}
                 />
               </div>
             ) : (
@@ -289,7 +288,20 @@ export default function Page() {
         `}
           style={{ minHeight: 0 }}
         >
-          {/* Banner de instrucción vive dentro de Mapa.tsx */}
+          {/* Banner modo reporte */}
+          {modoReporte && !coordenadasSeleccionadas && (
+            <div
+              className="absolute top-4 left-1/2 -translate-x-1/2 z-[450] flex items-center gap-2
+                         bg-blue-600 text-white px-4 py-2.5 rounded-xl shadow-lg border border-blue-500/40
+                         w-[90%] max-w-sm"
+              style={{ animation: 'bounce-subtle 2s ease-in-out infinite' }}
+            >
+              <AlertCircle size={16} className="shrink-0" />
+              <p className="text-xs font-bold leading-tight">
+                Toca el mapa para marcar la ubicación exacta del lugar
+              </p>
+            </div>
+          )}
 
           <div className="flex-1" style={{ minHeight: 0 }}>
             <Mapa
@@ -299,10 +311,6 @@ export default function Page() {
               coordenadasSeleccionadas={coordenadasSeleccionadas}
               setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
               onMarkerClick={r => setReporteSeleccionado(r)}
-              onConfirmarUbicacion={(coords) => {
-                setCoordenadasSeleccionadas(coords)
-                setVistaMobile('reportar')
-              }}
               visible={vistaMobile === 'mapa'}
             />
           </div>

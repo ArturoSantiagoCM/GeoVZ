@@ -332,8 +332,8 @@ export default function Mapa({
                       )}
                       {reporte.descripcion && (
                         <div>
-                          <p style={{ color: '#94a3b8', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
-                            Necesidades
+                          <p style={{ color: '#94a3b8', fontSize: 15, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+                            QUÉ DONAR?
                           </p>
                           <p style={{ color: '#1e293b', fontSize: 13, lineHeight: 1.7, whiteSpace: 'pre-line', maxHeight: 180, overflowY: 'auto' }}>
                             {reporte.descripcion}

@@ -160,7 +160,17 @@ function MapController({
     }
   }, [map])
 
-  // Invalidar tamaño al hacerse visible
+  // Invalidar al montar — cubre el caso de entrar directo a "Ver Mapa"
+  useEffect(() => {
+    const t1 = setTimeout(() => map.invalidateSize({ animate: false }), 50)
+    const t2 = setTimeout(() => map.invalidateSize({ animate: false }), 200)
+    const t3 = setTimeout(() => map.invalidateSize({ animate: false }), 500)
+    const t4 = setTimeout(() => map.invalidateSize({ animate: false }), 1000)
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Invalidar también cada vez que visible pasa a true (cambio de vista mobile)
   useEffect(() => {
     if (!visible) return
     const t1 = setTimeout(() => map.invalidateSize({ animate: false }), 50)

@@ -111,8 +111,18 @@ export default function Page() {
   const seleccionarTarjeta = (reporte: Reporte) => {
     const lat = Number(reporte.latitud), lng = Number(reporte.longitud)
     if (isNaN(lat) || isNaN(lng)) return
-    setReporteSeleccionado({ ...reporte, latitud: lat, longitud: lng })
+    // Primero cambiamos a la vista mapa (en mobile), luego el MapController
+    // hace flyTo y abre el popup automáticamente tras el vuelo
     setVistaMobile('mapa')
+    setModoReporte(false)
+    setReporteSeleccionado({ ...reporte, latitud: lat, longitud: lng })
+  }
+
+  /* ── Actualizar descripción en el estado local tras guardar ── */
+  const actualizarDescripcion = (id: string, descripcion: string) => {
+    setReportes(prev =>
+      prev.map(r => r.id === id ? { ...r, descripcion } : r)
+    )
   }
 
   /* ── Loader ── */
@@ -219,6 +229,7 @@ export default function Page() {
                         reporte={reporte}
                         estaSeleccionado={reporteSeleccionado?.id === reporte.id}
                         onSelect={seleccionarTarjeta}
+                        onUpdate={actualizarDescripcion}
                       />
                     ))
                   ) : (

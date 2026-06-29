@@ -349,6 +349,9 @@ export default function Page() {
               coordenadasSeleccionadas={coordenadasSeleccionadas}
               setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
               onMarkerClick={r => setReporteSeleccionado(r)}
+              onConfirmarUbicacion={(coords) => {
+                setCoordenadasSeleccionadas(coords)
+              }}
               visible={vistaMobile === 'mapa'}
             />
           </div>

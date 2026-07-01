@@ -3,23 +3,18 @@ import { useState, useRef } from 'react'
 import { Sparkles, Search, Loader2, X, MapPin, ChevronDown, ChevronUp, Lightbulb } from 'lucide-react'
 import { Reporte } from '@/types'
 
-/* ─── Tipos ─────────────────────────────────────────────────── */
 interface ResultadoLugar {
   reporteId: string
   tipo: string
   ubicacion: string
-  itemsCoinciden: string[]   // ítems que SÍ coinciden con la búsqueda
+  itemsCoinciden: string[]
 }
 
-interface RespuestaGemini {
-  coincidencias: {
-    reporteId: string
-    items: string[]          // solo los ítems realmente relacionados
-  }[]
-  recomendaciones: string[]  // qué más llevar (basado en lo que existe en datos)
+interface RespuestaAPI {
+  coincidencias: { reporteId: string; items: string[] }[]
+  recomendaciones: string[]
 }
 
-/* ─── Paleta ─────────────────────────────────────────────────── */
 const CFG: Record<string, { color: string; bg: string; border: string; emoji: string; label: string }> = {
   'Refugio':             { color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', emoji: '🏠', label: 'Refugio' },
   'Centro Médico':       { color: '#dc2626', bg: '#fef2f2', border: '#fecaca', emoji: '🏥', label: 'Centro Médico' },
@@ -29,50 +24,21 @@ const CFG: Record<string, { color: string; bg: string; border: string; emoji: st
 }
 const D = { color: '#64748b', bg: '#f8fafc', border: '#e2e8f0', emoji: '📍', label: 'Lugar' }
 
-/* ─── Utilidades ─────────────────────────────────────────────── */
-
-/** Extrae ítems reales de una descripción (filtra líneas vacías / puntitos) */
-function extraerItems(desc: string): string[] {
-  return desc
-    .split(/\n|,|;/)
-    .map(l => l.replace(/^[-•*·\s]+/, '').trim())
-    .filter(l => l.replace(/[.\s]/g, '').length > 3)  // mínimo 3 caracteres significativos
-}
-
-/** Construye el payload compacto que se manda a Gemini */
-function buildPayload(reportes: Reporte[]): { id: string; items: string[] }[] {
-  return reportes
-    .filter(r => {
-      const texto = (r.descripcion ?? '').trim()
-      // Descarta descripciones vacías o con solo signos/espacios
-      return texto.replace(/[.\-\s•*]/g, '').length > 3
-    })
-    .map(r => ({
-      id: r.id,
-      items: extraerItems(r.descripcion!),
-    }))
-    .filter(r => r.items.length > 0)
-}
-
-/** Construye la ubicación legible de un reporte */
 function ubicacion(r: Reporte): string {
   return [r.estado, r.municipio].filter(Boolean).join(', ')
     || r.direccion_texto
     || `${Number(r.latitud).toFixed(4)}, ${Number(r.longitud).toFixed(4)}`
 }
 
-/* ─── Componente ─────────────────────────────────────────────── */
-interface Props { reportes: Reporte[] }
-
-export default function BuscadorIA({ reportes }: Props) {
-  const [abierto, setAbierto]       = useState(false)
-  const [consulta, setConsulta]     = useState('')
-  const [cargando, setCargando]     = useState(false)
-  const [resultado, setResultado]   = useState<ResultadoLugar[] | null>(null)
+export default function BuscadorIA({ reportes }: { reportes: Reporte[] }) {
+  const [abierto, setAbierto]         = useState(false)
+  const [consulta, setConsulta]       = useState('')
+  const [cargando, setCargando]       = useState(false)
+  const [resultado, setResultado]     = useState<ResultadoLugar[] | null>(null)
   const [recomendaciones, setRecomendaciones] = useState<string[]>([])
-  const [error, setError]           = useState<string | null>(null)
-  const [expandidos, setExpandidos] = useState<Record<string, boolean>>({})
-  const inputRef                    = useRef<HTMLInputElement>(null)
+  const [error, setError]             = useState<string | null>(null)
+  const [expandidos, setExpandidos]   = useState<Record<string, boolean>>({})
+  const inputRef                      = useRef<HTMLInputElement>(null)
 
   const toggle = (id: string) => setExpandidos(p => ({ ...p, [id]: !p[id] }))
 
@@ -86,61 +52,23 @@ export default function BuscadorIA({ reportes }: Props) {
     const q = consulta.trim()
     if (!q || cargando) return
 
-    const payload = buildPayload(reportes)
-
-    if (payload.length === 0) {
-      setError('No hay lugares con necesidades registradas aún.')
-      return
-    }
-
     setCargando(true); setError(null); setResultado(null); setRecomendaciones([])
 
-    /* ── Prompt ultra-compacto ── */
-    const prompt = `Sos un asistente de ayuda humanitaria. El usuario quiere donar: "${q}".
-
-Tenés esta lista de lugares con sus ítems de necesidad:
-${JSON.stringify(payload)}
-
-TAREA:
-1. Para cada lugar, indicá cuáles ítems de su lista están relacionados con "${q}". Si ningún ítem está relacionado, no incluyas ese lugar.
-2. Basándote SOLO en los ítems que aparecen en los datos (no inventes nada), sugerí hasta 3 artículos adicionales que el donante podría llevar que complementen su donación de "${q}" y que aparezcan en algún lugar de los datos.
-
-REGLAS CRÍTICAS:
-- Solo incluí ítems que existan EXACTAMENTE en los datos proporcionados.
-- No inferás, no inventes, no agregues nada que no esté escrito en los datos.
-- Si ningún lugar tiene ítems relacionados con "${q}", devolvé coincidencias: [].
-- Las recomendaciones deben ser ítems que realmente aparezcan en algún lugar de los datos.
-
-Respondé SOLO con este JSON (sin markdown, sin texto extra):
-{
-  "coincidencias": [
-    { "reporteId": "id-del-lugar", "items": ["ítem relacionado 1", "ítem relacionado 2"] }
-  ],
-  "recomendaciones": ["ítem complementario 1", "ítem complementario 2"]
-}`
-
     try {
-      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0, maxOutputTokens: 800 },
-          }),
-        }
-      )
+      // Llama a la API Route de Next.js — la key nunca sale al browser
+      const res = await fetch('/api/buscar-donacion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ consulta: q, reportes }),
+      })
 
-      const data = await res.json()
-      const texto = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-      const limpio = texto.replace(/```json|```/g, '').trim()
-      const parsed: RespuestaGemini = JSON.parse(limpio)
+      if (!res.ok) throw new Error('Error del servidor')
 
-      // Cruzar IDs de Gemini con los reportes en memoria
+      const data: RespuestaAPI = await res.json()
+
+      // Cruzar IDs con los reportes en memoria
       const mapaReportes = Object.fromEntries(reportes.map(r => [r.id, r]))
-      const resultados: ResultadoLugar[] = parsed.coincidencias
+      const resultados: ResultadoLugar[] = (data.coincidencias ?? [])
         .filter(c => c.items.length > 0 && mapaReportes[c.reporteId])
         .map(c => {
           const r = mapaReportes[c.reporteId]
@@ -153,17 +81,18 @@ Respondé SOLO con este JSON (sin markdown, sin texto extra):
         })
 
       setResultado(resultados)
-      setRecomendaciones(parsed.recomendaciones ?? [])
+      setRecomendaciones(data.recomendaciones ?? [])
     } catch {
-      setError('No se pudo procesar la búsqueda. Verificá tu conexión e intentá de nuevo.')
+      setError('No se pudo procesar la búsqueda. Intentá de nuevo.')
     } finally {
-      setCargando(false) }
+      setCargando(false)
+    }
   }
 
   return (
     <div className="mx-4 mt-4 mb-1">
 
-      {/* ── Botón cabecera ── */}
+      {/* Botón cabecera */}
       <button
         onClick={() => { setAbierto(p => !p); setTimeout(() => inputRef.current?.focus(), 100) }}
         className="w-full flex items-center justify-between px-4 py-3 rounded-2xl
@@ -180,7 +109,7 @@ Respondé SOLO con este JSON (sin markdown, sin texto extra):
         {abierto ? <ChevronUp size={16} className="text-white/80" /> : <ChevronDown size={16} className="text-white/80" />}
       </button>
 
-      {/* ── Panel ── */}
+      {/* Panel */}
       {abierto && (
         <div className="mt-2 rounded-2xl border border-violet-100 bg-white shadow-sm overflow-hidden">
 
@@ -256,7 +185,6 @@ Respondé SOLO con este JSON (sin markdown, sin texto extra):
           {resultado && !cargando && (
             <div className="px-4 pb-4 space-y-3">
 
-              {/* Sin resultados */}
               {resultado.length === 0 ? (
                 <div className="text-center py-8 space-y-1">
                   <p className="text-3xl">🔍</p>
@@ -276,8 +204,8 @@ Respondé SOLO con este JSON (sin markdown, sin texto extra):
                     </p>
                   </div>
 
-                  {/* Tarjetas de lugares */}
-                  {resultado.map((lugar) => {
+                  {/* Tarjetas */}
+                  {resultado.map(lugar => {
                     const cfg = CFG[lugar.tipo] ?? D
                     const expandido = expandidos[lugar.reporteId] ?? true
                     return (
@@ -303,7 +231,6 @@ Respondé SOLO con este JSON (sin markdown, sin texto extra):
                             : <ChevronDown size={13} style={{ color: cfg.color }} className="shrink-0" />
                           }
                         </button>
-
                         {expandido && (
                           <div className="px-3 py-2.5 bg-white border-t space-y-1.5" style={{ borderColor: cfg.border }}>
                             {lugar.itemsCoinciden.map((item, j) => (
@@ -341,7 +268,6 @@ Respondé SOLO con este JSON (sin markdown, sin texto extra):
                     </div>
                   )}
 
-                  {/* Nueva búsqueda */}
                   <button
                     onClick={limpiar}
                     className="w-full text-[11px] font-bold text-violet-600 hover:text-violet-800

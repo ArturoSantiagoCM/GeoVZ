@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabase'
 import { Reporte } from '@/types'
 import dynamic from 'next/dynamic'
 import FiltrosTipo from '@/components/FiltrosTipo'
+import BuscadorIA from '@/components/BuscadorIA'
 import TarjetaReporte from '@/components/TarjetaReporte'
 import FormularioReporte from '@/components/FormularioReporte'
 import Image from 'next/image'
@@ -242,6 +243,9 @@ export default function Page() {
               </div>
             ) : (
               <>
+                {/* ── Buscador IA ── */}
+                <BuscadorIA reportes={reportes} />
+
                 {/* ── Encabezado ── */}
                 <div className="px-4 pt-5 pb-4 border-b border-slate-100">
                   <h2 className="text-6xl font-black text-slate-900 tracking-tighter leading-none">
@@ -349,9 +353,6 @@ export default function Page() {
               coordenadasSeleccionadas={coordenadasSeleccionadas}
               setCoordenadasSeleccionadas={setCoordenadasSeleccionadas}
               onMarkerClick={r => setReporteSeleccionado(r)}
-              onConfirmarUbicacion={(coords) => {
-                setCoordenadasSeleccionadas(coords)
-              }}
               visible={vistaMobile === 'mapa'}
             />
           </div>

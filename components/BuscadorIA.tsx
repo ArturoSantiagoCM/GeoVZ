@@ -110,15 +110,19 @@ export default function BuscadorIA({ reportes, onSeleccionarLugar }: BuscadorIAP
                 onClick={() => onSeleccionarLugar?.(lugar.latitud, lugar.longitud, lugar.id)}
                 className="p-3 rounded-xl border border-slate-100 hover:border-violet-300 hover:bg-violet-50/50 cursor-pointer transition text-left space-y-1 group"
               >
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 group-hover:bg-violet-100 group-hover:text-violet-700 transition">
-                    {lugar.tipo || 'Punto de ayuda'}
-                  </span>
-                  <span className="text-[10px] font-medium text-slate-400 flex items-center gap-0.5">
-                    <MapPin size={10} />
-                    {lugar.municipio}, {lugar.estado}
-                  </span>
-                </div>
+                // components/BuscadorIA.tsx
+
+// Busca esta sección dentro del JSX y cámbiala por:
+<div className="flex items-center justify-between">
+  <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 group-hover:bg-violet-100 group-hover:text-violet-700 transition">
+    {/* 👈 Cambiado lugar.tipo por lugar.categoria_infraestructura para coincidir con tu Type */}
+    {lugar.categoria_infraestructura || 'Punto de ayuda'}
+  </span>
+  <span className="text-[10px] font-medium text-slate-400 flex items-center gap-0.5">
+    <MapPin size={10} />
+    {lugar.municipio}, {lugar.estado}
+  </span>
+</div>
                 <p className="text-xs font-semibold text-slate-800 line-clamp-2">
                   {lugar.descripcion}
                 </p>

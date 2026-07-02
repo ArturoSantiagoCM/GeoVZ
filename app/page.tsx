@@ -84,7 +84,7 @@ export default function Page() {
     return () => { supabase.removeChannel(channel) }
   }, [])
 
-  /* ── Agrupación de coordenadas duplicadas ── */
+/* ── Agrupación de coordenadas duplicadas ── */
   const reportesAgrupados = useMemo(() => {
     if (!reportes.length) return []
     const mapa: Record<string, Reporte> = {}
@@ -96,7 +96,8 @@ export default function Page() {
         mapa[key] = {
           ...mapa[key],
           descripcion: `${mapa[key].descripcion}\n\n⚠️ OTRA NECESIDAD:\n${r.descripcion || ''}`,
-          tipo: 'Múltiples Necesidades', // Sincronizado dinámicamente con la base de datos
+          // 👇 CAMBIO CRÍTICO AQUÍ: Usamos 'tipo_necesidad' en lugar de 'tipo' para respetar la interfaz Reporte
+          tipo_necesidad: 'Múltiples Necesidades', 
         }
       } else {
         mapa[key] = { ...r, latitud: lat, longitud: lng }

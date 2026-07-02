@@ -18,13 +18,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Falta la configuración de la API Key.' }, { status: 500 })
     }
 
-    // Minimizamos el payload: Gemini solo necesita el ID y la descripción para evaluar
-    const datosParaIA = reportes.map((r: any) => ({
-      id: r.id || '',
-      descripcion: r.descripcion || ''
-    })).filter(r => r.descripcion.trim().length > 0)
 
-    const prompt = `Actúas como un filtro inteligente para un mapa de ayuda humanitaria en Venezuela.
+// Minimizamos el payload: Gemini solo necesita el ID y la descripción para evaluar
+const datosParaIA = reportes
+  .map((r: any) => ({
+    id: (r.id || '').toString(),
+    descripcion: (r.descripcion || '').trim()
+  }))
+  // Le agregamos la estructura clara al parámetro 'item' para que TypeScript no se queje
+  .filter((item: { id: string; descripcion: string }) => item.descripcion.length > 0)
+    
+  const prompt = `Actúas como un filtro inteligente para un mapa de ayuda humanitaria en Venezuela.
 Analiza las descripciones de los lugares y determina cuáles necesitan insumos relacionados con la búsqueda: "${consulta}".
 
 Usa criterio semántico amplio (ej. si busca "medicamentos", incluye lugares que pidan "pastillas", "paracetamol", "antibióticos", "gasas", "suero").

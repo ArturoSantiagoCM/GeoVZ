@@ -58,28 +58,32 @@ Respondé SOLO con este JSON (sin markdown, sin texto extra):
 }`
 
     const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0, maxOutputTokens: 800 },
-      }),
-    })
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { 
+      temperature: 0, 
+      maxOutputTokens: 800,
+      responseMimeType: "application/json" // 👈 ESTO FUERZA A GEMINI A DEVOLVER SOLO JSON
+    },
+  }),
+})
 
-    if (!res.ok) {
-      const err = await res.text()
-      console.error('Gemini error:', err)
-      return NextResponse.json({ error: 'Error de Gemini' }, { status: 500 })
-    }
+if (!res.ok) {
+  const err = await res.text()
+  console.error('Gemini error:', err)
+  return NextResponse.json({ error: 'Error de Gemini' }, { status: 500 })
+}
 
-    const data = await res.json()
-    const texto = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-    const limpio = texto.replace(/```json|```/g, '').trim()
-    const resultado = JSON.parse(limpio)
+const data = await res.json()
+const texto = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
 
-    return NextResponse.json(resultado)
-  } catch (err) {
-    console.error('Error en buscar-donacion:', err)
-    return NextResponse.json({ error: 'Error al procesar la búsqueda' }, { status: 500 })
-  }
+// Como forzamos application/json, ya no necesitamos limpiar marcas de markdown ```json
+try {
+  const resultado = JSON.parse(texto.trim())
+  return NextResponse.json(resultado)
+} catch (parseError) {
+  console.error('Error al parsear el JSON de Gemini:', texto, parseError)
+  return NextResponse.json({ error: 'La IA devolvió un formato inválido' }, { status: 500 })
 }

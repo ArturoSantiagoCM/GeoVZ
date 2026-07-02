@@ -96,7 +96,7 @@ export default function Page() {
         mapa[key] = {
           ...mapa[key],
           descripcion: `${mapa[key].descripcion}\n\n⚠️ OTRA NECESIDAD:\n${r.descripcion || ''}`,
-          tipo_necesidad: 'Múltiples Necesidades',
+          tipo: 'Múltiples Necesidades', // Sincronizado dinámicamente con la base de datos
         }
       } else {
         mapa[key] = { ...r, latitud: lat, longitud: lng }
@@ -108,11 +108,14 @@ export default function Page() {
   /* ── Filtros ── */
   const reportesFiltrados = useMemo(() => {
     return reportes.filter(r => {
-      if (filtroTipo && r.tipo_necesidad !== filtroTipo) return false
+      // Ajuste de lectura flexible para evitar colisiones entre tipo y tipo_necesidad en TypeScript
+      const tipoReal = (r as any).tipo || (r as any).tipo_necesidad || ''
+      if (filtroTipo && tipoReal !== filtroTipo) return false
       if (filtroInfraestructura && r.categoria_infraestructura !== filtroInfraestructura) return false
+      
       if (busqueda.trim()) {
         const q = busqueda.toLowerCase()
-        return [r.descripcion, r.estado, r.municipio, r.direccion_texto, r.tipo_necesidad, r.categoria_infraestructura]
+        return [r.descripcion, r.estado, r.municipio, r.direccion_texto, tipoReal, r.categoria_infraestructura]
           .some(v => v?.toLowerCase().includes(q))
       }
       return true
@@ -123,8 +126,6 @@ export default function Page() {
   const seleccionarTarjeta = (reporte: Reporte) => {
     const lat = Number(reporte.latitud), lng = Number(reporte.longitud)
     if (isNaN(lat) || isNaN(lng)) return
-    // Primero cambiamos a la vista mapa (en mobile), luego el MapController
-    // hace flyTo y abre el popup automáticamente tras el vuelo
     setVistaMobile('mapa')
     setModoReporte(false)
     setReporteSeleccionado({ ...reporte, latitud: lat, longitud: lng })
@@ -139,19 +140,15 @@ export default function Page() {
 
   /* ── Volver al formulario tras fijar punto en el mapa (modo pin Uber) ── */
   useEffect(() => {
-    // Solo actuar si: el usuario está en el mapa, en modo reporte, y acaba de fijar coords
     if (vistaMobile === 'mapa' && modoReporte && coordenadasSeleccionadas) {
       const t = setTimeout(() => {
         setVistaMobile('reportar')
-        // modoReporte permanece true para que el pin siga activo si vuelve al mapa
       }, 600)
       return () => clearTimeout(t)
     }
-  // Solo se dispara cuando cambian las coordenadas
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coordenadasSeleccionadas])
 
-  /* ── Loader ── */
   if (cargando) {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-50 gap-4">
@@ -193,8 +190,7 @@ export default function Page() {
           <button
             onClick={recargarReportes}
             disabled={actualizando}
-            className="flex items-center justify-center w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700
-                       border border-slate-700 transition disabled:opacity-50"
+            className="flex items-center justify-center w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 transition disabled:opacity-50"
             title="Actualizar lista"
           >
             <svg
@@ -235,7 +231,6 @@ export default function Page() {
                     cambiarVistaMobile('lista')
                   }}
                   onSeleccionarEnMapa={() => {
-                    // Ir al mapa con modoReporte activo para que PinCentral esté activo
                     setModoReporte(true)
                     setVistaMobile('mapa')
                   }}
@@ -248,10 +243,11 @@ export default function Page() {
 
                 {/* ── Encabezado ── */}
                 <div className="px-4 pt-5 pb-4 border-b border-slate-100">
-                  <h2 className="text-6xl font-black text-slate-900 tracking-tighter leading-none">
+                  <h2 className="text-5xl font-black text-slate-900 tracking-tighter leading-none">
                     ¿DÓNDE<br/>DONAR?
                   </h2>
-                  <p className="text-1x1 text-slate-500 mt-2 font-medium">
+                  {/* 👈 Corregido text-1x1 inválido por text-sm estructural de Tailwind */}
+                  <p className="text-sm text-slate-500 mt-2 font-medium">
                     Necesidades críticas en tiempo real · Venezuela
                   </p>
                 </div>
@@ -272,7 +268,7 @@ export default function Page() {
                 <div className="px-4 py-4 space-y-3 pb-6">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      --Lugares de Donación--
+                      Lugares de Donación
                     </span>
                     <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full">
                       {reportesFiltrados.length}
@@ -311,17 +307,15 @@ export default function Page() {
                     <a
                       href="https://redayudavenezuela.com"
                       target="_blank" rel="noopener noreferrer"
-                      className="flex items-center justify-between p-3 bg-red-50 hover:bg-red-100
-                                 border border-red-200 rounded-xl text-[11px] font-bold text-red-700 transition"
+                      className="flex items-center justify-between p-3 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl text-[11px] font-bold text-red-700 transition"
                     >
-                      <span>Personar Desaparecidas</span>
+                      <span>Personas Desaparecidas</span>
                       <ExternalLink size={11} className="text-red-400 shrink-0" />
                     </a>
                     <a
                       href="https://hospitalesenvenezuela.com"
                       target="_blank" rel="noopener noreferrer"
-                      className="flex items-center justify-between p-3 bg-blue-50 hover:bg-blue-100
-                                 border border-blue-200 rounded-xl text-[11px] font-bold text-blue-700 transition"
+                      className="flex items-center justify-between p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-[11px] font-bold text-blue-700 transition"
                     >
                       <span>Personas en Hospitales</span>
                       <ExternalLink size={11} className="text-blue-400 shrink-0" />
@@ -334,17 +328,12 @@ export default function Page() {
         </aside>
 
         {/* ── MAPA ── */}
-        {/* Usamos invisible+pointer-events-none en vez de hidden para que Leaflet
-            siempre tenga un contenedor con dimensiones reales y pueda hacer
-            invalidateSize correctamente al cambiar de vista. */}
         <main className={`
           flex-1 relative flex flex-col
           ${vistaMobile === 'mapa' ? '' : 'invisible pointer-events-none md:visible md:pointer-events-auto'}
         `}
           style={{ minHeight: 0 }}
         >
-          {/* Banner de instrucción ahora vive dentro de Mapa.tsx (PinCentral) */}
-
           <div className="flex-1" style={{ minHeight: 0 }}>
             <Mapa
               reportes={reportesAgrupados}
@@ -360,8 +349,7 @@ export default function Page() {
       </div>
 
       {/* ══ NAVEGACIÓN MOBILE ════════════════════════════════════ */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200
-                      flex items-center justify-around z-[500] shadow-xl">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 flex items-center justify-around z-[500] shadow-xl">
         <NavBtn
           active={vistaMobile === 'lista'}
           onClick={() => cambiarVistaMobile('lista')}
@@ -374,7 +362,6 @@ export default function Page() {
           icon={<MapIcon size={20} />}
           label="Ver Mapa"
         />
-        {/* Botón principal (FAB-style) */}
         <button
           onClick={() => cambiarVistaMobile('reportar')}
           className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-colors

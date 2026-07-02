@@ -43,12 +43,12 @@ export default function BuscadorIA({ reportes, onSeleccionarLugar }: BuscadorIAP
 
       if (!response.ok) throw new Error(datos.error || 'Error al buscar.')
 
-      if (datos.idsCoincidentes && Array.isArray(datos.idsCoincidentes)) {
-        // Cruzamos los IDs de la IA con nuestros reportes completos del frontend
-        const de VerdadCoinciden = reportes.filter(r => datos.idsCoincidentes.includes(r.id))
-        
-        setLugaresFiltrados(de VerdadCoinciden)
-        setRecomendaciones(datos.recomendaciones || [])
+     if (datos.idsCoincidentes && Array.isArray(datos.idsCoincidentes)) {
+  // 👈 Aquí corregido: 'deVerdadCoinciden' todo junto sin espacios
+  const deVerdadCoinciden = reportes.filter(r => datos.idsCoincidentes.includes(r.id))
+  
+  setLugaresFiltrados(deVerdadCoinciden) // 👈 Aquí también todo junto
+  setRecomendaciones(datos.recomendaciones || [])
 
         if (de VerdadCoinciden.length === 0) {
           setError('No se encontraron puntos con necesidades relacionadas a tu búsqueda.')

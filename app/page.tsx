@@ -132,6 +132,19 @@ export default function Page() {
     setReporteSeleccionado({ ...reporte, latitud: lat, longitud: lng })
   }
 
+  /* ── Selección desde el Buscador IA: lleva al mapa en el lugar exacto ── */
+  const seleccionarDesdeIA = (lat: number, lng: number, reporteId: string) => {
+    if (isNaN(lat) || isNaN(lng)) return
+    const reporteOriginal = reportes.find(r => r.id === reporteId)
+    setVistaMobile('mapa')
+    setModoReporte(false)
+    setReporteSeleccionado(
+      reporteOriginal
+        ? { ...reporteOriginal, latitud: lat, longitud: lng }
+        : ({ id: reporteId, latitud: lat, longitud: lng } as Reporte)
+    )
+  }
+
   /* ── Actualizar descripción en el estado local tras guardar ── */
   const actualizarDescripcion = (id: string, descripcion: string) => {
     setReportes(prev =>
@@ -240,7 +253,7 @@ export default function Page() {
             ) : (
               <>
                 {/* ── Buscador IA ── */}
-                <BuscadorIA reportes={reportes} />
+                <BuscadorIA reportes={reportes} onSeleccionarLugar={seleccionarDesdeIA} />
 
                 {/* ── Encabezado ── */}
                 <div className="px-4 pt-5 pb-4 border-b border-slate-100">

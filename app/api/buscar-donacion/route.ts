@@ -18,14 +18,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Falta la configuración de la API Key.' }, { status: 500 })
     }
 
-    // MAPEO EXACTO: Extraemos 'id', 'tipo' (columna de Supabase) y 'descripcion'
+// MAPEO EXACTO: Extraemos 'id', 'tipo' y 'descripcion' con tipado explícito
     const datosParaIA = reportes
       .map((r: any) => ({
         id: (r.id || '').toString(),
         tipo: (r.tipo || 'Punto de acopio').toString(),
         descripcion: (r.descripcion || '').trim()
       }))
-      .filter((item) => item.descripcion.length > 0)
+      // 👈 Aquí agregamos el tipo explícito al parámetro 'item' para corregir el error de compilación
+      .filter((item: { id: string; tipo: string; descripcion: string }) => item.descripcion.length > 0)
 
     const prompt = `Actúas como un filtro inteligente para un mapa de ayuda humanitaria en Venezuela.
 Analiza las descripciones de los lugares y determina cuáles necesitan insumos relacionados con la búsqueda: "${consulta}".

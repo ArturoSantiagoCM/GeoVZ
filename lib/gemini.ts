@@ -1,6 +1,8 @@
 // lib/gemini.ts
+// gemini-2.0-flash fue apagado por Google el 1 de junio de 2026.
+// Usamos gemini-2.5-flash-lite: mismo precio que 2.0-flash, estable (GA).
 const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent'
 
 export async function geminiGenerateContent(prompt: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY  // sin NEXT_PUBLIC_ — solo servidor
@@ -11,7 +13,13 @@ export async function geminiGenerateContent(prompt: string): Promise<string> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0, maxOutputTokens: 800 },
+      generationConfig: {
+        temperature: 0,
+        maxOutputTokens: 800,
+        // Desactiva el "thinking" de los modelos 2.5 para respuestas
+        // más rápidas y baratas en tareas simples de texto.
+        thinkingConfig: { thinkingBudget: 0 },
+      },
     }),
   })
 

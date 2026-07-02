@@ -1,74 +1,81 @@
-import { NextResponse } from 'next/server'
+// app/api/buscar-donacion/route.ts
+import { NextRequest, NextResponse } from 'next/server'
 
-export async function POST(request: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const { consulta, reportes } = await request.json()
-
-    if (!consulta || !reportes) {
-      return NextResponse.json({ error: 'Faltan parámetros' }, { status: 400 })
+    const body = await req.json().catch(() => null)
+    if (!body || !body.consulta || !body.reportes || !Array.isArray(body.reportes)) {
+      return NextResponse.json(
+        { error: 'Parámetros inválidos. Se requiere "consulta" y "reportes".' },
+        { status: 400 }
+      )
     }
+
+    const { consulta, reportes } = body
 
     const apiKey = process.env.GEMINI_API_KEY
     if (!apiKey) {
-      return NextResponse.json({ error: 'Falta la API Key en el servidor' }, { status: 500 })
+      return NextResponse.json({ error: 'Falta la configuración de la API Key.' }, { status: 500 })
     }
 
-    const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
+    // Minimizamos el payload: Gemini solo necesita el ID y la descripción para evaluar
+    const datosParaIA = reportes.map((r: any) => ({
+      id: r.id || '',
+      descripcion: r.descripcion || ''
+    })).filter(r => r.descripcion.trim().length > 0)
 
-    // Simplificamos los datos enviados para no saturar los tokens de Gemini
-    const payload = reportes.map((r: any) => ({
-      id: r.id,
-      descripcion: r.descripcion || '',
-      categoria: r.categoria_infraestructura || ''
-    }))
+    const prompt = `Actúas como un filtro inteligente para un mapa de ayuda humanitaria en Venezuela.
+Analiza las descripciones de los lugares y determina cuáles necesitan insumos relacionados con la búsqueda: "${consulta}".
 
-    const prompt = `Actúa como un asistente de logística humanitaria para el terremoto en Venezuela. El usuario busca: "${consulta}".
-Tenés esta lista de lugares en formato JSON:
-${JSON.stringify(payload)}
+Usa criterio semántico amplio (ej. si busca "medicamentos", incluye lugares que pidan "pastillas", "paracetamol", "antibióticos", "gasas", "suero").
+
+DATOS DE LOS LUGARES (JSON):
+${JSON.stringify(datosParaIA)}
 
 TAREA:
-1. Analiza las descripciones de cada lugar e identifica cuáles necesitan cosas relacionadas con "${consulta}". Usa asociación semántica (ej. si busca "medicamentos", busca términos como "gasas", "pastillas", "paracetamol", "antibióticos").
-2. Devuelve un objeto JSON estrictamente con este formato:
-{
-  "coincidencias": [
-    { "reporteId": "id-del-reporte", "items": ["item1 encontrado", "item2 encontrado"] }
-  ],
-  "recomendaciones": ["sugerencia1", "sugerencia2"]
-}
-No agregues explicaciones, markdown o texto fuera del objeto JSON.`
+1. Devuelve SOLO los "id" de los lugares cuya descripción coincida con la búsqueda.
+2. Genera una lista de hasta 3 artículos complementarios generales que se sugiera donar basados en la necesidad global.
 
-    const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+DEBES RESPONDER EXCLUSIVAMENTE ESTE FORMATO JSON (sin markdown, sin bloques de código):
+{
+  "idsCoincidentes": ["id1", "id2"],
+  "recomendaciones": ["artículo1", "artículo2"]
+}`
+
+    const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
+    
+    const res = await fetch(`${GEMINI_ENDPOINT}?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { 
-          temperature: 0, 
-          maxOutputTokens: 1000,
-          responseMimeType: "application/json" 
-        },
-      }),
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 800,
+          responseMimeType: "application/json" // Fuerza salida JSON limpia sin ```json
+        }
+      })
     })
 
     if (!res.ok) {
-      const errText = await res.text()
-      console.error('Error de Gemini API:', errText)
-      return NextResponse.json({ error: 'Error al conectar con la IA' }, { status: 500 })
+      const errTxt = await res.text()
+      console.error('Error de Gemini:', errTxt)
+      return NextResponse.json({ error: 'La IA no pudo procesar la solicitud.' }, { status: 502 })
     }
 
     const data = await res.json()
-    const texto = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+    const textoJson = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
 
     try {
-      const resultado = JSON.parse(texto.trim())
-      return NextResponse.json(resultado)
-    } catch (parseError) {
-      console.error('Error parseando JSON de Gemini:', texto, parseError)
-      return NextResponse.json({ error: 'La IA devolvió un formato inválido' }, { status: 500 })
+      const resultadoEstable = JSON.parse(textoJson.trim())
+      return NextResponse.json(resultadoEstable)
+    } catch (err) {
+      console.error('Error parseando JSON de Gemini:', textoJson)
+      return NextResponse.json({ error: 'Formato de respuesta inválido.' }, { status: 500 })
     }
 
-  } catch (err) {
-    console.error('Error crítico en el endpoint buscar-donacion:', err)
-    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
+  } catch (error) {
+    console.error('Error en servidor:', error)
+    return NextResponse.json({ error: 'Error interno del servidor.' }, { status: 500 })
   }
 }

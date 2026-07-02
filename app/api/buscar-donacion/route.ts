@@ -27,13 +27,21 @@ export async function POST(req: NextRequest) {
     }
 
     // Mapeamos los datos de Supabase y forzamos el tipado explícito en el filtro
+    // Truncamos la descripción y limitamos la cantidad de reportes que le mandamos
+    // a la IA: mientras más crece la base de datos, más grande es el JSON de salida
+    // que Gemini tiene que generar, y si se pasa de maxOutputTokens la respuesta
+    // se corta a la mitad y JSON.parse falla ("Formato de respuesta inválido").
+    const MAX_REPORTES_PARA_IA = 200
+    const MAX_LARGO_DESCRIPCION = 300
+
     const datosParaIA = reportes
       .map((r: any) => ({
         id: (r.id || '').toString(),
         tipo: (r.tipo || r.categoria_infraestructura || 'Punto de acopio').toString(),
-        descripcion: (r.descripcion || '').trim()
+        descripcion: (r.descripcion || '').trim().slice(0, MAX_LARGO_DESCRIPCION)
       }))
       .filter((item: ItemReporte) => item.descripcion.length > 0)
+      .slice(0, MAX_REPORTES_PARA_IA)
 
     const prompt = `Actúas como un filtro inteligente para un mapa de ayuda humanitaria en Venezuela.
 Analiza las descripciones de los lugares y determina cuáles necesitan insumos relacionados con la búsqueda: "${consulta}".
@@ -64,7 +72,10 @@ DEBES RESPONDER EXCLUSIVAMENTE ESTE FORMATO JSON (sin markdown, sin bloques de c
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.1,
-          maxOutputTokens: 800,
+          // Subimos el límite: con muchos reportes coincidiendo, la lista de
+          // "idsCoincidentes" puede ser larga y 800 tokens se quedaba corto,
+          // truncando el JSON a la mitad.
+          maxOutputTokens: 3000,
           responseMimeType: "application/json",
           // Los modelos 2.5 tienen "thinking" activado por defecto, lo que
           // consume tokens extra y puede provocar respuestas vacías si
@@ -78,6 +89,14 @@ DEBES RESPONDER EXCLUSIVAMENTE ESTE FORMATO JSON (sin markdown, sin bloques de c
     if (!res.ok) {
       const errTxt = await res.text()
       console.error('Error de Gemini API:', res.status, errTxt)
+
+      if (res.status === 429) {
+        return NextResponse.json(
+          { error: 'Se alcanzó el límite de solicitudes a la IA (rate limit). Intenta de nuevo en un momento.', detalle: errTxt },
+          { status: 502 }
+        )
+      }
+
       // Devolvemos el detalle en dev/preview para poder depurar rápido.
       return NextResponse.json(
         { error: 'La IA no pudo procesar la solicitud.', detalle: errTxt },
@@ -86,14 +105,38 @@ DEBES RESPONDER EXCLUSIVAMENTE ESTE FORMATO JSON (sin markdown, sin bloques de c
     }
 
     const data = await res.json()
-    const textoJson = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+    const candidato = data.candidates?.[0]
+    const textoJson = candidato?.content?.parts?.[0]?.text ?? ''
+    const finishReason = candidato?.finishReason
+
+    // Si Google bloqueó la respuesta por seguridad, no hay texto que parsear.
+    if (data.promptFeedback?.blockReason) {
+      console.error('Gemini bloqueó el prompt:', data.promptFeedback)
+      return NextResponse.json(
+        { error: 'La IA bloqueó la solicitud por políticas de seguridad.', detalle: data.promptFeedback },
+        { status: 500 }
+      )
+    }
+
+    // Si se cortó por límite de tokens, el JSON queda a la mitad: lo detectamos
+    // antes de intentar parsear para dar un mensaje claro en vez de uno genérico.
+    if (finishReason === 'MAX_TOKENS') {
+      console.error('Respuesta de Gemini truncada por MAX_TOKENS. Largo del texto:', textoJson.length)
+      return NextResponse.json(
+        { error: 'La respuesta de la IA se cortó por ser demasiado larga. Intenta con una búsqueda más específica.' },
+        { status: 500 }
+      )
+    }
 
     try {
       const resultadoEstable = JSON.parse(textoJson.trim())
       return NextResponse.json(resultadoEstable)
     } catch (err) {
-      console.error('Error parseando JSON de Gemini:', textoJson)
-      return NextResponse.json({ error: 'Formato de respuesta inválido.' }, { status: 500 })
+      console.error('Error parseando JSON de Gemini. finishReason:', finishReason, 'texto:', textoJson)
+      return NextResponse.json(
+        { error: 'Formato de respuesta inválido.', detalle: { finishReason, textoRecibido: textoJson.slice(0, 500) } },
+        { status: 500 }
+      )
     }
 
   } catch (error: any) {

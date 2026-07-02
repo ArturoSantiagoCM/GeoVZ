@@ -1,7 +1,6 @@
-// components/BuscadorIA.tsx
 'use client'
 import { useState } from 'react'
-import { Sparkles, Search, Loader2, MapPin, Lightbulb } from 'lucide-react'
+import { Sparkles, Search, Loader2, MapPin, Lightbulb, X } from 'lucide-react'
 import { Reporte } from '@/types'
 
 interface BuscadorIAProps {
@@ -14,13 +13,17 @@ export default function BuscadorIA({ reportes, onSeleccionarLugar }: BuscadorIAP
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
-  // Guardaremos los objetos Reporte completos que la IA filtró
+  // Guardamos los objetos Reporte filtrados por la IA
   const [lugaresFiltrados, setLugaresFiltrados] = useState<Reporte[]>([])
   const [recomendaciones, setRecomendaciones] = useState<string[]>([])
 
   const handleBuscar = async () => {
     const q = consulta.trim()
-    if (!q || cargando) return
+    if (!q) {
+      limpiarBusqueda()
+      return
+    }
+    if (cargando) return
 
     if (!reportes || reportes.length === 0) {
       setError('No hay datos disponibles en el mapa para buscar.')
@@ -54,7 +57,7 @@ export default function BuscadorIA({ reportes, onSeleccionarLugar }: BuscadorIAP
           setError('No se encontraron puntos con necesidades relacionadas a tu búsqueda.')
         }
       } else {
-        throw new Error('Estructura de datos inesperada.')
+        throw new Error('Estructura de datos inesperada desde el servidor.')
       }
 
     } catch (err: any) {
@@ -65,11 +68,28 @@ export default function BuscadorIA({ reportes, onSeleccionarLugar }: BuscadorIAP
     }
   }
 
+  const limpiarBusqueda = () => {
+    setConsulta('')
+    setError(null)
+    setLugaresFiltrados([])
+    setRecomendaciones([])
+  }
+
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-4">
-      <div className="flex items-center gap-2 text-violet-700 font-bold text-sm">
-        <Sparkles size={18} className="animate-pulse" />
-        <h2>Buscador Inteligente GeoVZ</h2>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-violet-700 font-bold text-sm">
+          <Sparkles size={18} className="animate-pulse" />
+          <h2>Buscador Inteligente GeoVZ</h2>
+        </div>
+        {consulta && (
+          <button 
+            onClick={limpiarBusqueda}
+            className="text-slate-400 hover:text-slate-600 transition p-0.5 rounded-lg hover:bg-slate-100"
+          >
+            <X size={14} />
+          </button>
+        )}
       </div>
 
       {/* Input de búsqueda */}
@@ -88,7 +108,7 @@ export default function BuscadorIA({ reportes, onSeleccionarLugar }: BuscadorIAP
         <button
           onClick={handleBuscar}
           disabled={cargando}
-          className="bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 disabled:opacity-50"
+          className="bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 disabled:opacity-50 shrink-0"
         >
           {cargando ? <Loader2 size={14} className="animate-spin" /> : 'Buscar'}
         </button>
@@ -103,29 +123,34 @@ export default function BuscadorIA({ reportes, onSeleccionarLugar }: BuscadorIAP
             Lugares que necesitan esto:
           </h3>
           <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
-            {lugaresFiltrados.map((lugar) => (
-              <div
-                key={lugar.id}
-                onClick={() => onSeleccionarLugar?.(lugar.latitud, lugar.longitud, lugar.id)}
-                className="p-3 rounded-xl border border-slate-100 hover:border-violet-300 hover:bg-violet-50/50 cursor-pointer transition text-left space-y-1 group"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 group-hover:bg-violet-100 group-hover:text-violet-700 transition">
-                    {((lugar as any).tipo) || lugar.categoria_infraestructura || 'Punto de ayuda'}
-                  </span>
-                  <span className="text-[10px] font-medium text-slate-400 flex items-center gap-0.5">
-                    <MapPin size={10} />
-                    {lugar.municipio}, {lugar.estado}
-                  </span>
+            {lugaresFiltrados.map((lugar) => {
+              // Extraemos el tipo de manera segura para evitar errores de propiedades desconocidas en TypeScript
+              const tipoUI = (lugar as any).tipo_necesidad || (lugar as any).tipo || lugar.categoria_infraestructura || 'Punto de ayuda'
+              
+              return (
+                <div
+                  key={lugar.id}
+                  onClick={() => onSeleccionarLugar?.(Number(lugar.latitud), Number(lugar.longitud), lugar.id)}
+                  className="p-3 rounded-xl border border-slate-100 hover:border-violet-300 hover:bg-violet-50/50 cursor-pointer transition text-left space-y-1 group"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 group-hover:bg-violet-100 group-hover:text-violet-700 transition truncate max-w-[180px]">
+                      {tipoUI}
+                    </span>
+                    <span className="text-[10px] font-medium text-slate-400 flex items-center gap-0.5 shrink-0">
+                      <MapPin size={10} />
+                      {lugar.municipio}, {lugar.estado}
+                    </span>
+                  </div>
+                  <p className="text-xs font-semibold text-slate-800 line-clamp-2">
+                    {lugar.descripcion}
+                  </p>
+                  <p className="text-[10px] text-violet-600 font-bold pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    📍 Ver en el mapa →
+                  </p>
                 </div>
-                <p className="text-xs font-semibold text-slate-800 line-clamp-2">
-                  {lugar.descripcion}
-                </p>
-                <p className="text-[10px] text-violet-600 font-bold pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  📍 Ver en el mapa →
-                </p>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}

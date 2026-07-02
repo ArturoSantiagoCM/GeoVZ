@@ -18,17 +18,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Falta la configuración de la API Key.' }, { status: 500 })
     }
 
+    // MAPEO EXACTO: Extraemos 'id', 'tipo' (columna de Supabase) y 'descripcion'
+    const datosParaIA = reportes
+      .map((r: any) => ({
+        id: (r.id || '').toString(),
+        tipo: (r.tipo || 'Punto de acopio').toString(),
+        descripcion: (r.descripcion || '').trim()
+      }))
+      .filter((item) => item.descripcion.length > 0)
 
-// Minimizamos el payload: Gemini solo necesita el ID y la descripción para evaluar
-const datosParaIA = reportes
-  .map((r: any) => ({
-    id: (r.id || '').toString(),
-    descripcion: (r.descripcion || '').trim()
-  }))
-  // Le agregamos la estructura clara al parámetro 'item' para que TypeScript no se queje
-  .filter((item: { id: string; descripcion: string }) => item.descripcion.length > 0)
-    
-  const prompt = `Actúas como un filtro inteligente para un mapa de ayuda humanitaria en Venezuela.
+    const prompt = `Actúas como un filtro inteligente para un mapa de ayuda humanitaria en Venezuela.
 Analiza las descripciones de los lugares y determina cuáles necesitan insumos relacionados con la búsqueda: "${consulta}".
 
 Usa criterio semántico amplio (ej. si busca "medicamentos", incluye lugares que pidan "pastillas", "paracetamol", "antibióticos", "gasas", "suero").
@@ -38,7 +37,7 @@ ${JSON.stringify(datosParaIA)}
 
 TAREA:
 1. Devuelve SOLO los "id" de los lugares cuya descripción coincida con la búsqueda.
-2. Genera una lista de hasta 3 artículos complementarios generales que se sugiera donar basados en la necesidad global.
+2. Genera una lista de hasta 3 artículos complementarios generales que se sugiera donar basados en la necesidad global de los datos provistos.
 
 DEBES RESPONDER EXCLUSIVAMENTE ESTE FORMATO JSON (sin markdown, sin bloques de código):
 {
@@ -56,14 +55,14 @@ DEBES RESPONDER EXCLUSIVAMENTE ESTE FORMATO JSON (sin markdown, sin bloques de c
         generationConfig: {
           temperature: 0.1,
           maxOutputTokens: 800,
-          responseMimeType: "application/json" // Fuerza salida JSON limpia sin ```json
+          responseMimeType: "application/json"
         }
       })
     })
 
     if (!res.ok) {
       const errTxt = await res.text()
-      console.error('Error de Gemini:', errTxt)
+      console.error('Error de Gemini API:', errTxt)
       return NextResponse.json({ error: 'La IA no pudo procesar la solicitud.' }, { status: 502 })
     }
 

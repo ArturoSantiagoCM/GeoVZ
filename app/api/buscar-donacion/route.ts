@@ -1,89 +1,74 @@
-// app/api/buscar-donacion/route.ts
-import { NextRequest, NextResponse } from 'next/server'
-import { Reporte } from '@/types'
+import { NextResponse } from 'next/server'
 
-const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
-
-function extraerItems(desc: string): string[] {
-  return desc
-    .split(/\n|,|;/)
-    .map(l => l.replace(/^[-•*·\s]+/, '').trim())
-    .filter(l => l.replace(/[.\s]/g, '').length > 3)
-}
-
-export async function POST(req: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const { consulta, reportes }: { consulta: string; reportes: Reporte[] } = await req.json()
+    const { consulta, reportes } = await request.json()
 
-    if (!consulta?.trim()) {
-      return NextResponse.json({ error: 'Consulta vacía' }, { status: 400 })
+    if (!consulta || !reportes) {
+      return NextResponse.json({ error: 'Faltan parámetros' }, { status: 400 })
     }
 
     const apiKey = process.env.GEMINI_API_KEY
     if (!apiKey) {
-      return NextResponse.json({ error: 'API key no configurada' }, { status: 500 })
+      return NextResponse.json({ error: 'Falta la API Key en el servidor' }, { status: 500 })
     }
 
-    const payload = reportes
-      .filter(r => (r.descripcion ?? '').replace(/[.\-\s•*]/g, '').length > 3)
-      .map(r => ({ id: r.id, items: extraerItems(r.descripcion!) }))
-      .filter(r => r.items.length > 0)
+    const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
 
-    if (payload.length === 0) {
-      return NextResponse.json({ coincidencias: [], recomendaciones: [] })
-    }
+    // Simplificamos los datos enviados para no saturar los tokens de Gemini
+    const payload = reportes.map((r: any) => ({
+      id: r.id,
+      descripcion: r.descripcion || '',
+      categoria: r.categoria_infraestructura || ''
+    }))
 
-    const prompt = `Sos un asistente de ayuda humanitaria. El usuario quiere donar: "${consulta}".
-
-Tenés esta lista de lugares con sus ítems de necesidad:
+    const prompt = `Actúa como un asistente de logística humanitaria para el terremoto en Venezuela. El usuario busca: "${consulta}".
+Tenés esta lista de lugares en formato JSON:
 ${JSON.stringify(payload)}
 
 TAREA:
-1. Para cada lugar, indicá cuáles ítems de su lista están relacionados con "${consulta}". Si ningún ítem está relacionado, no incluyas ese lugar.
-2. Basándote SOLO en los ítems que aparecen en los datos (no inventes nada), sugerí hasta 3 artículos adicionales que el donante podría llevar que complementen su donación de "${consulta}" y que aparezcan en algún lugar de los datos.
-
-REGLAS CRÍTICAS:
-- Solo incluí ítems que existan EXACTAMENTE en los datos proporcionados.
-- No inferás, no inventes, no agregues nada que no esté escrito en los datos.
-- Si ningún lugar tiene ítems relacionados con "${consulta}", devolvé coincidencias: [].
-- Las recomendaciones deben ser ítems que realmente aparezcan en algún lugar de los datos.
-
-Respondé SOLO con este JSON (sin markdown, sin texto extra):
+1. Analiza las descripciones de cada lugar e identifica cuáles necesitan cosas relacionadas con "${consulta}". Usa asociación semántica (ej. si busca "medicamentos", busca términos como "gasas", "pastillas", "paracetamol", "antibióticos").
+2. Devuelve un objeto JSON estrictamente con este formato:
 {
   "coincidencias": [
-    { "reporteId": "id-del-lugar", "items": ["ítem relacionado 1"] }
+    { "reporteId": "id-del-reporte", "items": ["item1 encontrado", "item2 encontrado"] }
   ],
-  "recomendaciones": ["ítem complementario 1", "ítem complementario 2"]
-}`
+  "recomendaciones": ["sugerencia1", "sugerencia2"]
+}
+No agregues explicaciones, markdown o texto fuera del objeto JSON.`
 
     const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { 
-      temperature: 0, 
-      maxOutputTokens: 800,
-      responseMimeType: "application/json" // 👈 ESTO FUERZA A GEMINI A DEVOLVER SOLO JSON
-    },
-  }),
-})
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { 
+          temperature: 0, 
+          maxOutputTokens: 1000,
+          responseMimeType: "application/json" 
+        },
+      }),
+    })
 
-if (!res.ok) {
-  const err = await res.text()
-  console.error('Gemini error:', err)
-  return NextResponse.json({ error: 'Error de Gemini' }, { status: 500 })
-}
+    if (!res.ok) {
+      const errText = await res.text()
+      console.error('Error de Gemini API:', errText)
+      return NextResponse.json({ error: 'Error al conectar con la IA' }, { status: 500 })
+    }
 
-const data = await res.json()
-const texto = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+    const data = await res.json()
+    const texto = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
 
-// Como forzamos application/json, ya no necesitamos limpiar marcas de markdown ```json
-try {
-  const resultado = JSON.parse(texto.trim())
-  return NextResponse.json(resultado)
-} catch (parseError) {
-  console.error('Error al parsear el JSON de Gemini:', texto, parseError)
-  return NextResponse.json({ error: 'La IA devolvió un formato inválido' }, { status: 500 })
+    try {
+      const resultado = JSON.parse(texto.trim())
+      return NextResponse.json(resultado)
+    } catch (parseError) {
+      console.error('Error parseando JSON de Gemini:', texto, parseError)
+      return NextResponse.json({ error: 'La IA devolvió un formato inválido' }, { status: 500 })
+    }
+
+  } catch (err) {
+    console.error('Error crítico en el endpoint buscar-donacion:', err)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
+  }
 }

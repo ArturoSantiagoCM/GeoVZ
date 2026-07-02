@@ -53,7 +53,9 @@ DEBES RESPONDER EXCLUSIVAMENTE ESTE FORMATO JSON (sin markdown, sin bloques de c
   "recomendaciones": ["artículo1", "artículo2"]
 }`
 
-    const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
+    // gemini-2.0-flash fue apagado por Google el 1 de junio de 2026.
+    // Migramos a gemini-2.5-flash-lite (mismo precio que 2.0-flash, estable).
+    const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent'
     
     const res = await fetch(`${GEMINI_ENDPOINT}?key=${apiKey}`, {
       method: 'POST',
@@ -63,15 +65,24 @@ DEBES RESPONDER EXCLUSIVAMENTE ESTE FORMATO JSON (sin markdown, sin bloques de c
         generationConfig: {
           temperature: 0.1,
           maxOutputTokens: 800,
-          responseMimeType: "application/json"
+          responseMimeType: "application/json",
+          // Los modelos 2.5 tienen "thinking" activado por defecto, lo que
+          // consume tokens extra y puede provocar respuestas vacías si
+          // maxOutputTokens es bajo. Lo desactivamos porque esta tarea
+          // (filtrar/clasificar) no lo necesita.
+          thinkingConfig: { thinkingBudget: 0 }
         }
       })
     })
 
     if (!res.ok) {
       const errTxt = await res.text()
-      console.error('Error de Gemini API:', errTxt)
-      return NextResponse.json({ error: 'La IA no pudo procesar la solicitud.' }, { status: 502 })
+      console.error('Error de Gemini API:', res.status, errTxt)
+      // Devolvemos el detalle en dev/preview para poder depurar rápido.
+      return NextResponse.json(
+        { error: 'La IA no pudo procesar la solicitud.', detalle: errTxt },
+        { status: 502 }
+      )
     }
 
     const data = await res.json()
